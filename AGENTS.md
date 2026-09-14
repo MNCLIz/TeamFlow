@@ -2,9 +2,31 @@
 
 ## Project Overview
 
-实时协作任务看板应用（类似 Trello 简化版），支持多人实时协作的任务管理。
+实时协作任务看板应用，支持多人实时协作的项目管理与任务追踪。
 
-**核心价值**: 展示全栈开发能力（Next.js + WebSocket + 数据库 + 实时通信）
+**核心价值**: 展示全栈开发能力（Next.js + SSE + 数据库 + 实时通信）
+
+### 页面结构
+
+项目看板页面包含三个子页面 + 右侧固定面板：
+
+- **Overview**: 仿 Linear 风格的项目详情页，展示图标、标题、属性、附件、描述
+- **Tasks**: 主功能页面，多栏目看板（待处理/进行中/待审核等），支持卡片 CRUD、拖拽排序/跨栏移动、实时同步
+- **Activity**: 团队动态流，展示任务发布和操作记录
+- **右侧固定面板**: 项目信息概览 + 邀请成员入口（所有子页面共享）
+
+### 功能优先级
+
+**P0（核心功能）:**
+- Tasks 页面：多栏目、卡片 CRUD（标题/描述/负责人/优先级/deadline/标签/内容/附件）、拖拽排序与跨栏移动、SSE 实时同步
+- Overview 页面：Linear 风格项目详情
+- Activity 页面：操作动态流
+- 右侧固定项目信息面板 + 邀请成员入口
+
+**P1（后续开发）:**
+- 表情/文字评论系统
+- 细粒度权限控制
+- 邀请成员具体实现方式
 
 ## Tech Stack
 
@@ -29,19 +51,43 @@ app/
 ├── api/                    # API Routes
 │   ├── auth/              # NextAuth 认证
 │   ├── projects/          # 项目管理 API
+│   │   ├── route.ts       # GET 列表 / POST 创建
+│   │   └── [id]/
+│   │       ├── route.ts   # GET 详情 / PATCH 更新 / DELETE 删除
+│   │       ├── cards/     # POST 创建卡片
+│   │       ├── columns/   # GET 看板列数据
+│   │       ├── events/    # GET SSE 实时事件流
+│   │       └── members/   # GET 列表 / POST 添加 / DELETE 移除
 │   └── cards/             # 卡片管理 API
+│       └── [id]/
+│           ├── route.ts   # PATCH 更新 / DELETE 删除
+│           └── move/      # POST 移动卡片
 ├── projects/              # 项目页面
-│   └── [id]/             # 看板页面
+│   ├── page.tsx           # 项目列表页
+│   └── [id]/             # 看板页面（布局容器 + 右侧固定面板）
+│       ├── layout.tsx     # 看板布局（含右侧项目信息面板）
+│       ├── overview/      # Overview 子页面（Linear 风格项目详情）
+│       │   └── page.tsx
+│       ├── tasks/         # Tasks 子页面（看板主功能）
+│       │   └── page.tsx
+│       └── activity/      # Activity 子页面（团队动态流）
+│           └── page.tsx
 ├── login/                 # 登录页面
 ├── layout.tsx             # 根布局
 └── page.tsx               # 首页
 
+middleware.ts              # 路由保护（页面重定向/API 401）
+
 components/
 ├── board/                 # 看板组件
-│   ├── Board.tsx
-│   ├── Column.tsx
-│   ├── Card.tsx
-│   └── CardDetailModal.tsx
+│   ├── Board.tsx          # 看板容器
+│   ├── Column.tsx         # 栏目组件
+│   ├── Card.tsx           # 卡片组件
+│   └── CardDetailModal.tsx # 卡片详情弹窗
+├── project/               # 项目相关组件
+│   ├── ProjectSidebar.tsx # 右侧固定项目信息面板
+│   ├── ProjectOverview.tsx # Overview 页面内容
+│   └── ActivityFeed.tsx   # Activity 动态流
 ├── ui/                    # shadcn/ui 组件
 └── shared/                # 共享组件
     ├── Header.tsx
@@ -50,7 +96,8 @@ components/
 lib/
 ├── prisma.ts              # Prisma 客户端
 ├── auth.ts                # NextAuth 配置
-└── sse.ts                 # SSE 工具
+├── auth-utils.ts          # 认证/授权工具函数
+└── sse.ts                 # SSE 连接管理与广播
 
 hooks/
 ├── useProject.ts          # 项目相关 Hook
@@ -178,16 +225,67 @@ description 使用中文。
 
 ## Workflow
 
-执行任何开发任务时，必须按照以下流程：
+采用逐端点推进的开发模式，每次只完成一个 API 端点或功能单元：
 
-1. 理解需求
-2. 检查项目结构
-3. 制定实施方案
-4. 实现代码
-5. 运行类型检查
-6. 运行构建检查
-7. 检查 Git diff
-8. 总结修改内容
+1. 理解当前端点/功能的需求
+2. 阅读相关现有代码
+3. 实现代码（API + 类型 + 必要的前端调用）
+4. 运行 `npm run typecheck` 确认类型正确
+5. 运行 `npm run build` 确认构建通过
+6. 调用 `@api-testing` skill 对刚完成的接口进行自动化测试，确保测试通过
+7. 向用户报告完成情况，等待"继续"指令
+8. 收到"继续"后进入下一个端点/功能
+
+**禁止一次性实现多个端点后再验证。** 每完成一个端点必须立即验证。
+
+## Current Project Status
+
+### Completed (Phase 1: Initialization)
+
+- ✅ 核心依赖安装完成（prisma@7, next-auth@5, zustand, @dnd-kit/core, bcryptjs）
+- ✅ 环境变量配置（.env.local）
+- ✅ Prisma Schema 定义并验证通过（User/Account/Session/Project/Column/Card/Label/Attachment/Activity/ProjectMember）
+- ✅ Prisma 7 驱动适配器配置（@prisma/adapter-mariadb）
+- ✅ NextAuth v5 配置（GitHub OAuth + 数据库会话 + PrismaAdapter）
+- ✅ 项目目录结构创建完成
+- ✅ shadcn/ui 初始化（base-nova 风格）及组件安装（button/dialog/input/textarea/badge/dropdown-menu）
+- ✅ 类型系统定义（api.ts/board.ts/auth.ts）
+- ✅ Zustand Store 实现（boardStore.ts）
+- ✅ SSE 实时通信工具（sse.ts）
+- ✅ 自定义 Hooks（useRealtime.ts/useProject.ts）
+- ✅ 看板组件实现（Board/Column/Card/CardDetailModal）
+- ✅ 共享组件实现（Header/OnlineUsers）
+- ✅ 页面实现（首页/登录/项目列表/看板页面）
+
+### Completed (Phase 2: Backend API + Realtime)
+
+- ✅ `GET /api/projects/[id]/columns` — 获取看板列数据（含卡片、标签、附件）
+- ✅ `POST /api/cards/[id]/move` — 移动卡片（跨栏 + 排序 + 活动记录）
+- ✅ `POST /api/projects/[id]/cards` — 创建卡片（支持 assigneeId/content/labelIds）
+- ✅ `PATCH /api/cards/[id]` — 更新卡片（支持 assigneeId/content/labelIds）
+- ✅ `DELETE /api/cards/[id]` — 删除卡片
+- ✅ `GET /api/projects` — 获取当前用户参与的项目列表
+- ✅ `POST /api/projects` — 创建项目（自动创建默认列 + ADMIN 成员）
+- ✅ `GET /api/projects/[id]` — 获取项目详情
+- ✅ `PATCH /api/projects/[id]` — 更新项目（ADMIN 权限）
+- ✅ `DELETE /api/projects/[id]` — 删除项目（ADMIN 权限）
+- ✅ `GET /api/projects/[id]/events` — SSE 实时事件流（心跳 + 连接管理）
+- ✅ `middleware.ts` — 路由保护（页面重定向 /login，API 返回 401）
+- ✅ SSE broadcast 集成 — 所有写入 API 推送实时事件（card:created/moved/updated/deleted, member:added/removed）
+- ✅ Schema 扩展 — Card 完整支持 assigneeId/content/labels/attachments
+- ✅ `GET /api/projects/[id]/members` — 获取项目成员列表
+- ✅ `POST /api/projects/[id]/members` — 添加成员（ADMIN 权限）
+- ✅ `DELETE /api/projects/[id]/members` — 移除成员（ADMIN 权限）
+- ✅ 认证/授权工具函数（lib/auth-utils.ts）
+- ✅ 类型检查和构建检查全部通过
+
+### Pending
+
+- ⏳ 用户需填写 .env.local 中的真实值（GitHub OAuth 凭据、MySQL 密码）
+- ⏳ 执行 `npm run db:push` 同步数据库
+- ⏳ Phase 3 (P1): 评论系统、细粒度权限控制、邀请成员具体实现
+- ⏳ 前端重构：看板页面三子页面（Overview/Tasks/Activity）+ 右侧固定面板
+- ⏳ 前端对接后端 API（替换 RSC 直查为客户端 fetch + SSE 实时更新）
 
 ## Work Rules
 
