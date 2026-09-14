@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String          @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  projects      ProjectMember[]
+  ownedProjects Project[]       @relation("ProjectOwner")
+  createdCards  Card[]
+  activities    Activity[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Project {
+  id          String          @id @default(cuid())
+  name        String
+  description String?         @db.Text
+  ownerId     String
+  owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     ProjectMember[]
+  columns     Column[]
+  activities  Activity[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  role      String   @default("MEMBER") // ADMIN | MEMBER
+  joinedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("project_members")
+}
+
+model Column {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cards     Card[]
+  createdAt DateTime @default(now())
+
+  @@index([projectId, order])
+  @@map("columns")
+}
+
+model Card {
+  id          String     @id @default(cuid())
+  title       String
+  description String?    @db.Text
+  priority    String     @default("MEDIUM") // LOW | MEDIUM | HIGH
+  dueDate     DateTime?
+  order       Float
+  columnId    String
+  column      Column     @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  activities  Activity[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([columnId, order])
+  @@map("cards")
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  cardId    String?
+  action    String   // CREATE_CARD | MOVE_CARD | UPDATE_CARD | DELETE_CARD | ADD_MEMBER | REMOVE_MEMBER
+  details   String?  @db.Text
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card      Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("activities")
+}

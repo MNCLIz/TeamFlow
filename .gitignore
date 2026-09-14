@@ -39,3 +39,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma
+/app/generated/prisma
+
+# IDE and AI assistants
+.agents/
+.claude/
+.windsurf/
+.vscode/
+.idea/
+
+# Documentation (project-specific plans)
+DEVELOPMENT_WORKFLOW.md
+PROJECT_PLAN.md
+AGENTS.md
+CLAUDE.md
+
+# Skills
+skills-lock.json
+
+# Node cache with Chinese characters
+你的node_cache文件夹路径/
