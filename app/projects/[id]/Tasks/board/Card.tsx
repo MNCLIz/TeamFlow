@@ -2,15 +2,16 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { BoardCard } from "@/types/board";
+import type { CardType } from "@/types/board";
 
 interface CardItemProps {
-  card: BoardCard;
+  card: CardType;
   projectId: string;
 }
 
 export function CardItem({ card }: CardItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: card.id });
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: card.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -29,7 +30,9 @@ export function CardItem({ card }: CardItemProps) {
       {card.priority !== "MEDIUM" && (
         <span
           className={`text-xs mt-1 inline-block px-1.5 py-0.5 rounded ${
-            card.priority === "HIGH" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+            card.priority === "HIGH"
+              ? "bg-red-100 text-red-700"
+              : "bg-green-100 text-green-700"
           }`}
         >
           {card.priority}

@@ -1,30 +1,81 @@
-import Link from "next/link";
-import { auth } from "@/lib/auth";
+"use client";
 
-export async function Header() {
-  const session = await auth();
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
 
+export function Header({
+  title,
+  extra = "",
+}: {
+  title: string;
+  extra?: string;
+}) {
   return (
     <header className="border-b px-6 py-3 flex items-center justify-between">
-      <Link href="/" className="font-bold text-lg">
-        TaskBoard
-      </Link>
-      <nav className="flex items-center gap-4">
-        {session?.user ? (
-          <>
-            <span className="text-sm">{session.user.name ?? session.user.email}</span>
-            <form action="/api/auth/signout" method="POST">
-              <button type="submit" className="text-sm hover:underline">
-                Sign out
-              </button>
-            </form>
-          </>
-        ) : (
-          <Link href="/login" className="text-sm hover:underline">
-            Sign in
-          </Link>
-        )}
-      </nav>
+      <div>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/">
+                <Button variant={"ghost"} size={"sm"}>
+                  首页
+                </Button>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+
+            {!extra ? (
+              <>
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    <Button variant={"ghost"} size={"sm"}>
+                      {title}
+                    </Button>
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : (
+              <>
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+
+                <BreadcrumbItem>
+                  <BreadcrumbLink>
+                    <Button
+                      variant={"ghost"}
+                      size={"sm"}
+                      onClick={() => {
+                        redirect("/" + title.toLowerCase());
+                      }}
+                    >
+                      {title}
+                    </Button>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    <Button variant={"ghost"} size={"sm"}>
+                      {extra}
+                    </Button>
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            )}
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="font-bold text-lg">{title}</div>
+      </div>
     </header>
   );
 }
