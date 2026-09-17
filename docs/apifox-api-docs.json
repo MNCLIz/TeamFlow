@@ -1,0 +1,1646 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "实时协作任务看板 API",
+    "description": "基于 Next.js + SSE 的实时协作项目管理与任务追踪系统 API 文档\n\n## 认证说明\n\n所有受保护的 API 端点都需要通过 NextAuth.js v5 进行身份验证。\n\n- **认证方式**: Cookie-based Session\n- **未登录响应**: 401 Unauthorized\n- **无权限响应**: 403 Forbidden\n\n## 错误响应格式\n\n```json\n{\n  \"success\": false,\n  \"error\": \"错误信息\"\n}\n```\n\n## 成功响应格式\n\n```json\n{\n  \"success\": true,\n  \"data\": { ... }\n}\n```\n\n## 实时通信 (SSE)\n\n项目使用 Server-Sent Events (SSE) 实现实时同步：\n\n- **连接地址**: `GET /api/projects/{id}/events`\n- **心跳间隔**: 30秒\n- **事件类型**: card:created, card:updated, card:moved, card:deleted, member:added, member:removed",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发环境"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Projects",
+      "description": "项目管理相关接口"
+    },
+    {
+      "name": "Cards",
+      "description": "卡片管理相关接口"
+    },
+    {
+      "name": "Members",
+      "description": "项目成员管理接口"
+    },
+    {
+      "name": "Realtime",
+      "description": "实时通信相关接口"
+    }
+  ],
+  "paths": {
+    "/api/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "获取当前用户的项目列表",
+        "description": "返回当前登录用户参与的所有项目，包含角色、成员数、列数等信息",
+        "operationId": "listProjects",
+        "responses": {
+          "200": {
+            "description": "成功获取项目列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "创建新项目",
+        "description": "创建新项目并自动添加当前用户为 ADMIN，同时创建默认的三个列（待办、进行中、已完成）",
+        "operationId": "createProject",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "项目名称",
+                    "example": "我的项目"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "项目描述",
+                    "example": "这是一个示例项目"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "项目创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "项目名称为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "获取项目详情",
+        "description": "获取指定项目的详细信息，包含成员、列、活动统计等",
+        "operationId": "getProjectById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取项目详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权访问该项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "项目不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "更新项目信息",
+        "description": "更新项目名称或描述，需要 ADMIN 权限",
+        "operationId": "updateProject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "项目名称",
+                    "example": "更新后的项目名称"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "项目描述",
+                    "example": "更新后的项目描述"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "项目更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "没有提供需要更新的字段或项目名称为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "仅管理员可修改项目信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "删除项目",
+        "description": "删除项目及其关联数据，需要 ADMIN 权限",
+        "operationId": "deleteProject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "项目删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "仅管理员可删除项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/columns": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "获取看板列数据",
+        "description": "获取指定项目的所有列及其包含的卡片（含标签、附件），按 order 排序",
+        "operationId": "getProjectColumns",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取看板列数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBoardColumns"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权访问该项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/cards": {
+      "post": {
+        "tags": ["Cards"],
+        "summary": "创建卡片",
+        "description": "在指定项目的某个列中创建新卡片，支持设置负责人、优先级、标签等",
+        "operationId": "createCard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "columnId"],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "卡片标题",
+                    "example": "完成首页设计"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "卡片简短描述",
+                    "example": "根据需求文档完成首页 UI 设计"
+                  },
+                  "content": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "卡片详细内容（支持 Markdown）",
+                    "example": "## 需求\n- 响应式设计\n- 深色模式支持"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "优先级，默认为 MEDIUM",
+                    "example": "HIGH"
+                  },
+                  "columnId": {
+                    "type": "string",
+                    "description": "所属列 ID",
+                    "example": "clm_abc123"
+                  },
+                  "assigneeId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "负责人用户 ID",
+                    "example": "usr_xyz789"
+                  },
+                  "labelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "标签 ID 数组",
+                    "example": ["lbl_001", "lbl_002"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "卡片创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少必要参数 title 或 columnId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权操作该项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "列不存在或不属于该项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/cards/{id}": {
+      "patch": {
+        "tags": ["Cards"],
+        "summary": "更新卡片",
+        "description": "更新卡片的标题、描述、内容、优先级、截止日期、负责人或标签",
+        "operationId": "updateCard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "卡片 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "卡片标题",
+                    "example": "更新后的标题"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "卡片简短描述",
+                    "example": "更新后的描述"
+                  },
+                  "content": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "卡片详细内容",
+                    "example": "更新后的详细内容"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "优先级",
+                    "example": "HIGH"
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "截止日期（ISO 8601 格式）",
+                    "example": "2026-12-31T23:59:59.000Z"
+                  },
+                  "assigneeId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "负责人用户 ID，null 表示移除负责人",
+                    "example": "usr_xyz789"
+                  },
+                  "labelIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "标签 ID 数组，替换现有标签",
+                    "example": ["lbl_001", "lbl_003"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "卡片更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "没有提供需要更新的字段或标题为空",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权操作该卡片",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "卡片不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["Cards"],
+        "summary": "删除卡片",
+        "description": "删除指定卡片及其关联的标签和附件",
+        "operationId": "deleteCard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "卡片 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "卡片删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权操作该卡片",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "卡片不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/cards/{id}/move": {
+      "post": {
+        "tags": ["Cards"],
+        "summary": "移动卡片",
+        "description": "将卡片移动到同一项目内的其他列或调整顺序，支持跨栏移动",
+        "operationId": "moveCard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "卡片 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["columnId", "order"],
+                "properties": {
+                  "columnId": {
+                    "type": "string",
+                    "description": "目标列 ID",
+                    "example": "clm_def456"
+                  },
+                  "order": {
+                    "type": "number",
+                    "format": "float",
+                    "description": "在新列中的排序值（Float 类型，支持小数）",
+                    "example": 1.5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "卡片移动成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少必要参数 columnId 或 order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权操作该卡片",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "卡片不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/members": {
+      "get": {
+        "tags": ["Members"],
+        "summary": "获取项目成员列表",
+        "description": "获取指定项目的所有成员及其角色信息",
+        "operationId": "listProjectMembers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取成员列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMemberList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "无权访问该项目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": ["Members"],
+        "summary": "添加项目成员",
+        "description": "向项目中添加新成员，需要 ADMIN 权限",
+        "operationId": "addProjectMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "description": "要添加的用户 ID",
+                    "example": "usr_abc123"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["ADMIN", "MEMBER"],
+                    "description": "成员角色，默认为 MEMBER",
+                    "example": "MEMBER"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成员添加成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少必要参数 userId 或用户已是成员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "需要管理员权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["Members"],
+        "summary": "移除项目成员",
+        "description": "从项目中移除指定成员，需要 ADMIN 权限，不能移除自己",
+        "operationId": "removeProjectMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "description": "要移除的成员用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成员移除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "example": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少必要参数 userId 或尝试移除自己",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "需要管理员权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "该用户不是项目成员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/events": {
+      "get": {
+        "tags": ["Realtime"],
+        "summary": "SSE 实时事件流",
+        "description": "建立 Server-Sent Events 连接以接收项目的实时更新通知\n\n## 事件类型\n\n- **connected**: 连接建立成功\n- **card:created**: 卡片创建\n- **card:updated**: 卡片更新\n- **card:moved**: 卡片移动\n- **card:deleted**: 卡片删除\n- **member:added**: 成员添加\n- **member:removed**: 成员移除\n\n## 心跳机制\n\n服务器每 30 秒发送一次心跳以保持连接活跃\n\n## 响应头\n\n```\nContent-Type: text/event-stream\nCache-Control: no-cache\nConnection: keep-alive\n```",
+        "operationId": "subscribeToEvents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "项目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE 连接建立成功",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "event: connected\ndata: {\"userId\":\"usr_abc123\"}\n\n: heartbeat\n\nevent: card:created\ndata: {...}\n\n"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录"
+          },
+          "403": {
+            "description": "无权访问该项目"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "required": ["success"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "请求是否成功",
+            "example": true
+          }
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "description": "错误信息",
+            "example": "未登录"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "用户 ID",
+            "example": "usr_abc123"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "用户名称",
+            "example": "张三"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "用户邮箱",
+            "example": "zhangsan@example.com"
+          },
+          "image": {
+            "type": "string",
+            "nullable": true,
+            "description": "用户头像 URL",
+            "example": "https://avatars.githubusercontent.com/u/123456?v=4"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "项目 ID",
+            "example": "prj_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "项目名称",
+            "example": "我的项目"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "项目描述",
+            "example": "这是一个示例项目"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "项目所有者 ID",
+            "example": "usr_owner123"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          }
+        }
+      },
+      "ProjectListItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": ["ADMIN", "MEMBER"],
+                "description": "当前用户在项目中的角色",
+                "example": "ADMIN"
+              },
+              "owner": {
+                "$ref": "#/components/schemas/User"
+              },
+              "memberCount": {
+                "type": "integer",
+                "description": "成员数量",
+                "example": 5
+              },
+              "columnCount": {
+                "type": "integer",
+                "description": "列数量",
+                "example": 3
+              }
+            }
+          }
+        ]
+      },
+      "ProjectDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": ["ADMIN", "MEMBER"],
+                "description": "当前用户在项目中的角色",
+                "example": "ADMIN"
+              },
+              "owner": {
+                "$ref": "#/components/schemas/User"
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                },
+                "description": "项目成员列表"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ColumnWithCards"
+                },
+                "description": "项目列及卡片"
+              },
+              "activityCount": {
+                "type": "integer",
+                "description": "活动记录数量",
+                "example": 42
+              }
+            }
+          }
+        ]
+      },
+      "ProjectMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "成员关系 ID",
+            "example": "pm_abc123"
+          },
+          "userId": {
+            "type": "string",
+            "description": "用户 ID",
+            "example": "usr_abc123"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["ADMIN", "MEMBER"],
+            "description": "成员角色",
+            "example": "MEMBER"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "加入时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "Column": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "列 ID",
+            "example": "clm_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "列名称",
+            "example": "待办"
+          },
+          "order": {
+            "type": "integer",
+            "description": "排序值",
+            "example": 0
+          },
+          "projectId": {
+            "type": "string",
+            "description": "所属项目 ID",
+            "example": "prj_abc123"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          }
+        }
+      },
+      "ColumnWithCards": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Column" },
+          {
+            "type": "object",
+            "properties": {
+              "cards": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Card"
+                },
+                "description": "列中的卡片列表"
+              }
+            }
+          }
+        ]
+      },
+      "CardLabel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "标签 ID",
+            "example": "lbl_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "标签名称",
+            "example": "Bug"
+          },
+          "color": {
+            "type": "string",
+            "description": "标签颜色（十六进制）",
+            "example": "#FF0000"
+          }
+        }
+      },
+      "CardAttachment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "附件 ID",
+            "example": "att_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "附件名称",
+            "example": "design.png"
+          },
+          "url": {
+            "type": "string",
+            "description": "附件 URL",
+            "example": "https://example.com/files/design.png"
+          },
+          "size": {
+            "type": "integer",
+            "description": "文件大小（字节）",
+            "example": 102400
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME 类型",
+            "example": "image/png"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "上传时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          }
+        }
+      },
+      "Card": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "卡片 ID",
+            "example": "crd_abc123"
+          },
+          "title": {
+            "type": "string",
+            "description": "卡片标题",
+            "example": "完成首页设计"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "卡片简短描述",
+            "example": "根据需求文档完成首页 UI 设计"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "卡片详细内容（支持 Markdown）",
+            "example": "## 需求\n- 响应式设计\n- 深色模式支持"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH"],
+            "description": "优先级",
+            "example": "HIGH"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "截止日期",
+            "example": "2026-12-31T23:59:59.000Z"
+          },
+          "order": {
+            "type": "number",
+            "format": "float",
+            "description": "排序值（Float 类型，支持小数）",
+            "example": 1.5
+          },
+          "columnId": {
+            "type": "string",
+            "description": "所属列 ID",
+            "example": "clm_abc123"
+          },
+          "createdById": {
+            "type": "string",
+            "description": "创建者 ID",
+            "example": "usr_creator123"
+          },
+          "assigneeId": {
+            "type": "string",
+            "nullable": true,
+            "description": "负责人 ID",
+            "example": "usr_assignee123"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardLabel"
+            },
+            "description": "标签列表"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardAttachment"
+            },
+            "description": "附件列表"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间",
+            "example": "2026-09-16T08:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间",
+            "example": "2026-09-16T09:00:00.000Z"
+          }
+        }
+      },
+      "ApiResponseProjectList": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProjectListItem"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseProject": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Project"
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseProjectDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ProjectDetail"
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseBoardColumns": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ColumnWithCards"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseCard": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Card"
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseMemberList": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ApiResponseMember": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ApiResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ProjectMember"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "next-auth.session-token",
+        "description": "NextAuth.js Session Cookie 认证"
+      }
+    }
+  }
+}
