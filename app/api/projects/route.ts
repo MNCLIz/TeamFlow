@@ -13,7 +13,25 @@ export async function GET() {
         project: {
           include: {
             owner: { select: { id: true, name: true, image: true } },
-            _count: { select: { members: true, columns: true } },
+            members: {
+              include: {
+                user: { select: { id: true, name: true, image: true } },
+              },
+              orderBy: { joinedAt: "asc" },
+            },
+            columns: {
+              include: {
+                cards: {
+                  include: {
+                    labels: true,
+                    attachments: true,
+                    assignee: { select: { id: true, name: true, image: true } },
+                  },
+                  orderBy: { order: "asc" },
+                },
+              },
+              orderBy: { order: "asc" },
+            },
           },
         },
       },
@@ -27,8 +45,8 @@ export async function GET() {
       role: m.role,
       ownerId: m.project.ownerId,
       owner: m.project.owner,
-      memberCount: m.project._count.members,
-      columnCount: m.project._count.columns,
+      members: m.project.members,
+      columns: m.project.columns,
       createdAt: m.project.createdAt,
       updatedAt: m.project.updatedAt,
     }));
@@ -74,9 +92,10 @@ export async function POST(request: NextRequest) {
       });
 
       const defaultColumns = [
-        { name: "待办", order: 0 },
-        { name: "进行中", order: 1 },
-        { name: "已完成", order: 2 },
+        { name: "未开始", order: 0 },
+        { name: "接下来", order: 1 },
+        { name: "进行中", order: 2 },
+        { name: "已完成", order: 3 },
       ];
 
       await tx.column.createMany({

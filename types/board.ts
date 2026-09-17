@@ -1,56 +1,41 @@
-export type Priority = "LOW" | "MEDIUM" | "HIGH";
-export type MemberRole = "ADMIN" | "MEMBER";
-export type ActivityAction =
-  | "CREATE_CARD"
-  | "UPDATE_CARD"
-  | "MOVE_CARD"
-  | "DELETE_CARD"
-  | "ADD_MEMBER"
-  | "REMOVE_MEMBER"
-  | "CREATE_COLUMN"
-  | "DELETE_COLUMN";
+import type { AttachmentType } from "@/types/file"
 
-export interface BoardColumn {
-  id: string;
-  name: string;
-  order: number;
-  cards: BoardCard[];
+enum Priority {
+    Low = "LOW",
+    Medium = "MEDIUM",
+    High = "HIGH",
 }
 
-export interface CardLabel {
-  id: string;
-  name: string;
-  color: string;
+export interface LabelType {
+    id: string
+    name: string
+    color: string
 }
 
-export interface CardAttachment {
-  id: string;
-  name: string;
-  url: string;
-  size: number;
-  mimeType: string;
-  createdAt: Date;
+// 任务卡片
+export interface CardType {
+    id: string
+    title: string
+    description: string
+    content: string
+    priority: Priority
+    dueDate: Date
+    order: number
+    columnId: string
+    createdById: string
+    assigneeId: string
+    labels: LabelType[]
+    attachments: AttachmentType[]
+    createdAt: Date
+    updatedAt: Date
 }
 
-export interface BoardCard {
-  id: string;
-  title: string;
-  description?: string | null;
-  content?: string | null;
-  priority: Priority;
-  dueDate?: Date | null;
-  order: number;
-  columnId: string;
-  createdById: string;
-  assigneeId?: string | null;
-  labels: CardLabel[];
-  attachments: CardAttachment[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface BoardData {
-  projectId: string;
-  projectName: string;
-  columns: BoardColumn[];
+// 任务列
+export interface ColumnType {
+    id: string
+    name: string
+    order: number
+    projectId: string
+    createdAt: Date
+    cards: CardType[]
 }
