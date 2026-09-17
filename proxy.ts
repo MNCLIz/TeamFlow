@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
+import { toast } from "sonner";
 
 const PUBLIC_PATHS = ["/", "/login", "/api/auth"];
 
@@ -8,7 +9,7 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) {
@@ -17,8 +18,9 @@ export async function middleware(request: NextRequest) {
 
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session) {
     if (pathname.startsWith("/api/")) {
+      toast.error("未登录", {position: "top-center"});
       return NextResponse.json(
         { success: false, error: { message: "未登录", code: "UNAUTHORIZED" } },
         { status: 401 }
