@@ -19,10 +19,9 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { title, description, content, priority, columnId, assigneeId, labelIds } = body as {
+    const { title, description, priority, columnId, assigneeId, labelIds } = body as {
       title?: string;
       description?: string;
-      content?: string;
       priority?: string;
       columnId?: string;
       assigneeId?: string | null;
@@ -58,7 +57,6 @@ export async function POST(
         data: {
           title,
           description: description || null,
-          content: content || null,
           priority: cardPriority,
           order: newOrder,
           columnId,
@@ -68,7 +66,7 @@ export async function POST(
             ? { labels: { connect: labelIds.map((id) => ({ id })) } }
             : {}),
         },
-        include: { labels: true, attachments: true },
+        include: { labels: true },
       });
 
       await tx.activity.create({

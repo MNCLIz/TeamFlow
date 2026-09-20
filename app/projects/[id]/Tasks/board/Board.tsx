@@ -1,17 +1,17 @@
 "use client";
 
 import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
-import { useState } from "react";
-import type { ColumnType as BoardColumnType } from "@/types/board";
+import { useEffect, useState } from "react";
 import { Column } from "./Column";
+import { useBoardStore } from "@/store/boardStore";
 
-interface BoardProps {
-  columns: BoardColumnType[];
-  projectId: string;
-}
-
-export function Board({ columns, projectId }: BoardProps) {
+export function Board() {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const columns = useBoardStore((state) => state.columns);
+
+  useEffect(() => {
+    console.log("columns改变", columns);
+  }, [columns]);
 
   return (
     <DndContext
@@ -19,9 +19,13 @@ export function Board({ columns, projectId }: BoardProps) {
       onDragStart={({ active }) => setActiveId(active.id as string)}
       onDragEnd={() => setActiveId(null)}
     >
-      <div className="flex gap-4 overflow-x-auto p-4 min-h-[calc(100vh-8rem)]">
+      <div className="flex gap-4 overflow-x-auto p-4 items-start">
         {columns.map((column) => (
-          <Column key={column.id} column={column} projectId={projectId} />
+          <Column
+            key={column.id}
+            column={column}
+            projectId={column.projectId}
+          />
         ))}
       </div>
       <DragOverlay>

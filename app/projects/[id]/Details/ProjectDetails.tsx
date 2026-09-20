@@ -4,25 +4,30 @@ import { MemberRole, MemberType } from "@/types/project";
 import { UserType } from "@/types/user";
 import { DescriptionDetail } from "./DescriptionDetail";
 
-export function ProjectDescription({
+export function ProjectDetails({
+  id,
   owner,
   role,
   createdAt,
   updatedAt,
   members,
   description,
+  onDescriptionChange,
 }: {
+  id: string;
   owner: UserType;
   role: MemberRole;
   createdAt: Date;
   updatedAt: Date;
   members: MemberType[];
   description: string;
+  onDescriptionChange?: (description: string) => void;
 }) {
   return (
     <>
       {/* Properties grid — Notion-style key-value layout */}
       <div className="space-y-4">
+        {/* 创建者 */}
         <PropertyRow label="Owner">
           <div className="flex items-center gap-2">
             <Avatar size="sm">
@@ -89,7 +94,12 @@ export function ProjectDescription({
             <span className="text-sm text-muted-foreground">No members</span>
           )}
         </PropertyRow>
-        <DescriptionDetail description={description} />
+        <DescriptionDetail
+          projectId={id}
+          role={role}
+          description={description}
+          onDescriptionChange={onDescriptionChange}
+        />
       </div>
     </>
   );

@@ -1,0 +1,229 @@
+/* Scoped Milkdown styles — only ProseMirror + Nord theme typography.
+   Extracted from @milkdown/theme-nord/style.css without the Tailwind v4
+   preflight reset that conflicts with the project's own Tailwind setup. */
+
+/* --- ProseMirror core --- */
+.ProseMirror {
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+  position: relative;
+}
+
+.ProseMirror pre {
+  white-space: pre-wrap;
+}
+
+.ProseMirror li {
+  position: relative;
+}
+
+.ProseMirror-hideselection ::selection {
+  background: none;
+}
+
+.ProseMirror-hideselection {
+  caret-color: transparent;
+}
+
+.ProseMirror [draggable][contenteditable="false"] {
+  user-select: text;
+}
+
+.ProseMirror-selectednode {
+  outline: 2px solid #8cf;
+}
+
+li.ProseMirror-selectednode {
+  outline: none;
+}
+
+li.ProseMirror-selectednode::after {
+  content: "";
+  pointer-events: none;
+  border: 2px solid #8cf;
+  position: absolute;
+  inset: -2px -2px -2px -32px;
+}
+
+img.ProseMirror-separator {
+  border: none !important;
+  margin: 0 !important;
+  display: inline !important;
+}
+
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ProseMirror td,
+.ProseMirror th {
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.ProseMirror .column-resize-handle {
+  z-index: 20;
+  pointer-events: none;
+  background-color: #adf;
+  width: 4px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -2px;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.ProseMirror .selectedCell::after {
+  z-index: 2;
+  content: "";
+  pointer-events: none;
+  background: #c8c8ff66;
+  position: absolute;
+  inset: 0;
+}
+
+/* --- Nord theme typography --- */
+.milkdown-theme-nord {
+  outline-style: none;
+}
+
+.milkdown-theme-nord h1 {
+  margin-top: 1.5rem;
+  font-size: 1.875rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.milkdown-theme-nord h2 {
+  margin-top: 1.25rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.milkdown-theme-nord h3 {
+  margin-top: 1rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord h4 {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord h5,
+.milkdown-theme-nord h6 {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.milkdown-theme-nord p {
+  font-size: 1rem;
+  line-height: 1.625;
+}
+
+.milkdown-theme-nord a {
+  text-decoration-line: underline;
+}
+
+.milkdown-theme-nord blockquote {
+  border-left: 4px solid #5e81ac;
+  padding-left: 1rem;
+  font-style: normal;
+}
+
+.milkdown-theme-nord ul {
+  list-style-type: disc;
+  list-style-position: outside;
+  padding-left: 1.25rem;
+}
+
+.milkdown-theme-nord ol {
+  list-style-type: decimal;
+  list-style-position: outside;
+  padding-left: 1.25rem;
+}
+
+.milkdown-theme-nord li {
+  margin-bottom: 0.25rem;
+}
+
+.milkdown-theme-nord code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+  color: #5e81ac;
+  background-color: oklch(92.8% 0.006 264.531);
+  padding: 0.125rem 0.25rem;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .milkdown-theme-nord code {
+    background-color: oklch(37.3% 0.034 259.733);
+  }
+}
+
+.milkdown-theme-nord pre {
+  border-radius: 0.5rem;
+  background-color: oklch(96.7% 0.003 264.542);
+  padding: 1rem;
+  font-size: 0.875rem;
+  overflow-x: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .milkdown-theme-nord pre {
+    background-color: oklch(27.8% 0.033 256.848);
+  }
+}
+
+.milkdown-theme-nord pre code {
+  background-color: transparent;
+  color: inherit;
+}
+
+.milkdown-theme-nord img {
+  max-width: 100%;
+  display: inline-block;
+  margin-block: 1rem;
+  border-radius: 0.5rem;
+}
+
+.milkdown-theme-nord hr {
+  margin-block: 1.5rem;
+  border-top: 1px solid;
+}
+
+.milkdown-theme-nord table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875rem;
+  border: 1px solid;
+}
+
+.milkdown-theme-nord th,
+.milkdown-theme-nord td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid;
+}
+
+.milkdown-theme-nord th {
+  font-weight: 600;
+}

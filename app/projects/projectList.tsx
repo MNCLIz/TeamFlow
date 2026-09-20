@@ -3,28 +3,31 @@
 import Link from "next/link";
 import { useProjectStore, ProjectStoreType } from "@/store/projectStore";
 import { useShallow } from "zustand/react/shallow";
-import { getProjectListAPI } from "@/lib/api/ProjectsAPI";
 import { useEffect, useCallback } from "react";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
+import { DeleteAlertDialog } from "@/components/shared/DeleteAlertDialog";
 
 export function ProjectList() {
-  const { projects, setProjects, addProject, removeProject } = useProjectStore(
+  const { projects, fetchProjects, deleteProject } = useProjectStore(
     useShallow((state: ProjectStoreType) => ({
       projects: state.projects,
-      setProjects: state.setProjects,
-      addProject: state.addProject,
-      removeProject: state.removeProject,
+      fetchProjects: state.fetchProjects,
+      deleteProject: state.deleteProject,
     })),
   );
 
-  const Init = useCallback(async () => {
-    const res = await getProjectListAPI();
-    setProjects(res);
-    console.log(res);
-  }, [setProjects]);
+  const handleDelete = useCallback(
+    async (projectId: string) => {
+      const deleted = await deleteProject(projectId);
+      if (!deleted) toast.error("Failed to delete project");
+    },
+    [deleteProject],
+  );
 
   useEffect(() => {
-    Init();
-  }, [Init]);
+    fetchProjects();
+  }, [fetchProjects]);
 
   return (
     <>
@@ -33,22 +36,31 @@ export function ProjectList() {
           No projects yet. Create your first project!
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col divide-y  rounded-lg">
           {projects.map((project) => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
-              className="block p-4 border rounded-lg hover:shadow-md transition-shadow"
+              className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
             >
-              <h3 className="font-semibold">{project.name}</h3>
-              {project.description && (
-                <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-              <span className="text-xs text-gray-400 mt-2 inline-block">
-                {project.owner.name}
-              </span>
+              <div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium truncate">{project.name}</h3>
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <Avatar size="sm">
+                  <AvatarImage src={project.owner.image!} />
+                </Avatar>
+                <span className="text-xs text-gray-400 mx-2 shrink-0">
+                  {project.owner.name}
+                </span>
+                <DeleteAlertDialog
+                  id={project.id}
+                  confirmDelete={handleDelete}
+                />
+              </div>
             </Link>
           ))}
         </div>

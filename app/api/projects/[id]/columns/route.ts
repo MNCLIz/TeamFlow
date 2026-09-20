@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, checkProjectAccess } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse } from "@/types/api";
-import type { BoardColumn } from "@/types/board";
+import type { ColumnType } from "@/types/board";
 
 export async function GET(
   _request: NextRequest,
@@ -26,36 +26,28 @@ export async function GET(
           orderBy: { order: "asc" },
           include: {
             labels: true,
-            attachments: true,
           },
         },
       },
     });
 
-    const boardColumns: BoardColumn[] = columns.map((col) => ({
+    const boardColumns: ColumnType[] = columns.map((col) => ({
       id: col.id,
       name: col.name,
       order: col.order,
+      projectId: col.projectId,
+      createdAt: col.createdAt,
       cards: col.cards.map((card) => ({
         id: card.id,
         title: card.title,
         description: card.description,
-        content: card.content,
-        priority: card.priority as BoardColumn["cards"][number]["priority"],
+        priority: card.priority as ColumnType["cards"][number]["priority"],
         dueDate: card.dueDate,
         order: card.order,
         columnId: card.columnId,
         createdById: card.createdById,
         assigneeId: card.assigneeId,
         labels: card.labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
-        attachments: card.attachments.map((a) => ({
-          id: a.id,
-          name: a.name,
-          url: a.url,
-          size: a.size,
-          mimeType: a.mimeType,
-          createdAt: a.createdAt,
-        })),
         createdAt: card.createdAt,
         updatedAt: card.updatedAt,
       })),

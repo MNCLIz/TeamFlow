@@ -1,17 +1,14 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { postProjectsAPI } from "@/lib/api/ProjectsAPI";
+import { useProjectStore } from "@/store/projectStore";
 
 export function CreateProjectButton() {
-  const createProject = async () => {
-    const res = await postProjectsAPI({ name: "New Project" });
-    console.log(res);
-  };
+  const createProject = useProjectStore((state) => state.createProject);
 
   return (
     <Button
-      onClick={() => createProject()}
+      onClick={() => createProject({ name: "New Project" })}
       className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
     >
       New Project

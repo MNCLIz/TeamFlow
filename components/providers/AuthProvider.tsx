@@ -11,7 +11,6 @@ export async function AuthProvider({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  console.log("session.user", session.user);
 
   return (
     <SidebarProvider>

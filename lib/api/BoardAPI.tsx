@@ -1,0 +1,78 @@
+import { request } from "@/lib/request";
+import { CardType, ColumnType } from "@/types/board";
+
+// 创建任务卡片
+interface PostCreateCardAPIParams {
+  projectId: string;
+  title: string;
+  description?: string;
+  priority?: string;
+  columnId: string;
+  assigneeId?: string;
+  labelIds?: string[];
+}
+export const postCreateCardAPI = async (params: PostCreateCardAPIParams) => {
+  return await request<PostCreateCardAPIParams, CardType>({
+    url: `/projects/${params.projectId}/cards`,
+    method: "POST",
+    data: params,
+  });
+};
+
+// 修改任务卡片
+interface PatchCardAPIParams {
+  id: string;
+  title?: string;
+  description?: string;
+  priority?: string;
+  assigneeId?: string;
+  labelIds?: string[];
+}
+export const patchCardAPI = async (params: PatchCardAPIParams) => {
+  return await request<PatchCardAPIParams, CardType>({
+    url: `/cards/${params.id}`,
+    method: "PATCH",
+    data: params,
+  });
+};
+
+// 删除任务卡片
+interface DeleteCardAPIParams {
+  id: string;
+}
+interface DeleteCardAPIResponse {
+  deleted: boolean;
+}
+export const deleteCardAPI = async (params: DeleteCardAPIParams) => {
+  return await request<DeleteCardAPIParams, DeleteCardAPIResponse>({
+    url: `/cards/${params.id}`,
+    method: "DELETE",
+  });
+};
+
+// 移动任务卡片
+interface PostMoveCardAPIParams {
+  id: string;
+  toColumnId: string;
+  order: number;
+}
+interface PostMoveCardAPIResponse {
+  cardId: string;
+  fromColumnId: string;
+  toColumnId: string;
+  order: number;
+}
+export const postMoveCardAPI = async (params: PostMoveCardAPIParams) => {
+  return await request<PostMoveCardAPIParams, PostMoveCardAPIResponse>({
+    url: `/cards/${params.id}/move`,
+    method: "POST",
+    data: params,
+  });
+};
+
+// 获取任务列数据
+export const getColumnAPI = async (params: { id: string }) => {
+  return await request<{ id: string }, ColumnType[]>({
+    url: `/projects/${params.id}/columns`,
+  });
+};

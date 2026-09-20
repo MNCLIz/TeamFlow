@@ -1,16 +1,9 @@
 import { Board } from "./board/Board";
-import { ColumnType } from "@/types/board";
 
-export function ProjectTasks({
-  columns,
-  id,
-}: {
-  columns: ColumnType[];
-  id: string;
-}) {
+export function ProjectTasks() {
   return (
     <>
-      <Board columns={columns!} projectId={id!} />
+      <Board />
     </>
   );
 }

@@ -24,7 +24,6 @@ export async function GET() {
                 cards: {
                   include: {
                     labels: true,
-                    attachments: true,
                     assignee: { select: { id: true, name: true, image: true } },
                   },
                   orderBy: { order: "asc" },
@@ -105,10 +104,28 @@ export async function POST(request: NextRequest) {
         })),
       });
 
-      return newProject;
+      return tx.project.findUniqueOrThrow({
+        where: { id: newProject.id },
+        include: {
+          owner: { select: { id: true, name: true, image: true } },
+          members: {
+            include: { user: { select: { id: true, name: true, image: true } } },
+            orderBy: { joinedAt: "asc" },
+          },
+          columns: {
+            orderBy: { order: "asc" },
+            include: { cards: { orderBy: { order: "asc" } } },
+          },
+          _count: { select: { activities: true } },
+        },
+      });
     });
 
-    return NextResponse.json(successResponse(project), { status: 201 });
+    return NextResponse.json(successResponse({
+      ...project,
+      role: "ADMIN" as const,
+      activityCount: project._count.activities,
+    }), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       const err = errorResponse("未登录", 401);

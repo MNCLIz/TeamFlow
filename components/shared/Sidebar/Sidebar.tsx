@@ -18,7 +18,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="text-lg font-semibold">TeamFlow</div>
+        <div className="text-lg font-semibold mx-4">TeamFlow</div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

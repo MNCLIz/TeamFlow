@@ -3,9 +3,9 @@ import { requireAuth, checkProjectAccess } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse } from "@/types/api";
 import { broadcast } from "@/lib/sse";
-import type { Priority } from "@/types/board";
+import { Priority } from "@/types/board";
 
-const VALID_PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
+const VALID_PRIORITIES: Priority[] = [Priority.Low, Priority.Medium, Priority.High];
 
 export async function PATCH(
   request: NextRequest,
@@ -16,10 +16,9 @@ export async function PATCH(
     const { id: cardId } = await params;
 
     const body = await request.json();
-    const { title, description, content, priority, dueDate, assigneeId, labelIds } = body as {
+    const { title, description, priority, dueDate, assigneeId, labelIds } = body as {
       title?: string;
       description?: string | null;
-      content?: string | null;
       priority?: Priority;
       dueDate?: string | null;
       assigneeId?: string | null;
@@ -29,7 +28,6 @@ export async function PATCH(
     if (
       title === undefined &&
       description === undefined &&
-      content === undefined &&
       priority === undefined &&
       dueDate === undefined &&
       assigneeId === undefined &&
@@ -68,7 +66,6 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title.trim();
     if (description !== undefined) data.description = description;
-    if (content !== undefined) data.content = content;
     if (priority !== undefined) data.priority = priority;
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (assigneeId !== undefined) data.assigneeId = assigneeId;
@@ -84,7 +81,7 @@ export async function PATCH(
       const result = await tx.card.update({
         where: { id: cardId },
         data,
-        include: { labels: true, attachments: true },
+        include: { labels: true },
       });
 
       const changedFields = Object.keys(data);

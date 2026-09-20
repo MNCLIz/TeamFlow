@@ -15,8 +15,10 @@ export default async function ProjectDetails({
 
   return (
     <AuthProvider>
-      <Header title="Projects" extra={CurrentProject.name} />
-      <ProjectClient project={CurrentProject} />
+      <div className="flex h-screen flex-col">
+        <Header title="Projects" extra={CurrentProject.name} />
+        <ProjectClient project={CurrentProject} />
+      </div>
     </AuthProvider>
   );
 }

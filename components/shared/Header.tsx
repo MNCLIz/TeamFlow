@@ -19,7 +19,7 @@ export function Header({
   extra?: string;
 }) {
   return (
-    <header className="border-b px-6 py-3 flex items-center justify-between">
+    <header className="sticky top-0 z-50 shrink-0 border-b bg-background px-6 py-3 flex items-center justify-between">
       <div>
         <Breadcrumb>
           <BreadcrumbList>

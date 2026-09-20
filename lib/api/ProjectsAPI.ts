@@ -28,3 +28,32 @@ export const getProjectListAPI = async () => {
         url: '/projects'
     })
 }
+
+interface PatchProjectAPIParams {
+    id: string
+    name?: string
+    description?: string
+}
+export const patchProjectAPI = async (params: PatchProjectAPIParams) => {
+    const data: Record<string, string> = {}
+    if (params.name !== undefined) data.name = params.name
+    if (params.description !== undefined) data.description = params.description
+    return await request<Record<string, string>, ProjectType>({
+        url: `/projects/${params.id}`,
+        method: 'PATCH',
+        data
+    })
+}
+
+// 删除项目
+
+interface DeleteProjectAPIRequence {
+    deleted: boolean
+}
+
+export const deleteProjectAPI = async (id: string) => {
+    return await request<null, DeleteProjectAPIRequence>({
+        url: `/projects/${id}`,
+        method: 'DELETE'
+    })
+}

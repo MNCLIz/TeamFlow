@@ -1,5 +1,3 @@
-import { toast } from "sonner";
-
 interface RequestOptions<T> {
     url: string;
     method?: string;

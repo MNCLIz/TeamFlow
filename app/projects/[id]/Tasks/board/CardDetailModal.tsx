@@ -1,5 +1,6 @@
 "use client";
 
+import ReactMarkdown from "react-markdown";
 import type { CardType } from "@/types/board";
 
 interface CardDetailModalProps {
@@ -16,7 +17,7 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl"
+        className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-start mb-4">
@@ -29,9 +30,9 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
           </button>
         </div>
         {card.description && (
-          <p className="text-gray-600 mb-4 whitespace-pre-wrap">
-            {card.description}
-          </p>
+          <div className="prose prose-sm max-w-none mb-4 text-gray-600">
+            <ReactMarkdown>{card.description}</ReactMarkdown>
+          </div>
         )}
         <div className="flex gap-4 text-sm text-gray-500">
           <span>Priority: {card.priority}</span>
