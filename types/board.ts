@@ -1,6 +1,4 @@
-import type { AttachmentType } from "@/types/file"
-
-enum Priority {
+export enum Priority {
     Low = "LOW",
     Medium = "MEDIUM",
     High = "HIGH",
@@ -16,16 +14,14 @@ export interface LabelType {
 export interface CardType {
     id: string
     title: string
-    description: string
-    content: string
+    description: string | null
     priority: Priority
-    dueDate: Date
+    dueDate: Date | null
     order: number
     columnId: string
     createdById: string
-    assigneeId: string
+    assigneeId: string | null
     labels: LabelType[]
-    attachments: AttachmentType[]
     createdAt: Date
     updatedAt: Date
 }
