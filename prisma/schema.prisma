@@ -20,7 +20,6 @@ model User {
   createdCards  Card[]
   assignedCards Card[]          @relation("CardAssignee")
   activities    Activity[]
-  attachments   Attachment[]
 
   @@map("users")
 }
@@ -74,7 +73,6 @@ model Project {
   columns     Column[]
   labels      Label[]
   activities  Activity[]
-  attachments Attachment[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -111,7 +109,6 @@ model Card {
   id          String       @id @default(cuid())
   title       String
   description String?      @db.Text
-  content     String?      @db.Text
   priority    String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
   dueDate     DateTime?
   order       Float
@@ -122,7 +119,6 @@ model Card {
   assigneeId  String?
   assignee    User?        @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   labels      Label[]      @relation("CardLabels")
-  attachments Attachment[]
   activities  Activity[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -143,25 +139,6 @@ model Label {
 
   @@index([projectId])
   @@map("labels")
-}
-
-model Attachment {
-  id         String   @id @default(cuid())
-  name       String
-  url        String
-  size       Int
-  mimeType   String
-  cardId     String?
-  card       Card?    @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploadedBy String
-  uploader   User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@index([cardId])
-  @@index([projectId])
-  @@map("attachments")
 }
 
 model Activity {
