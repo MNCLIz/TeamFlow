@@ -16,7 +16,7 @@ export interface ProjectStoreType {
   removeProject: (projectId: string) => void
   fetchProjects: () => Promise<void>
   createProject: (data: { name: string; description?: string }) => Promise<ProjectType>
-  updateProject: (params: { id: string; name?: string; description?: string }) => Promise<ProjectType>
+  updateProject: (params: { id: string; name?: string; description?: string }) => Promise<void>
   deleteProject: (id: string) => Promise<boolean>
 }
 
@@ -58,7 +58,7 @@ export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
         state.projects[idx] = project
       }
     })
-    return project
+    // return project
   },
   deleteProject: async (id) => {
     const result = await deleteProjectAPI(id)

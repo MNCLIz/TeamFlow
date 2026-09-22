@@ -16,18 +16,22 @@ import { Trash2 } from "lucide-react";
 export function DeleteAlertDialog({
   id,
   confirmDelete,
+  children,
 }: {
   id: string;
   confirmDelete: (id: string) => void;
+  children?: React.ReactNode;
 }) {
   return (
     <AlertDialog>
       <div onClick={(e) => e.preventDefault()}>
         <AlertDialogTrigger>
-          <Trash2
-            size={32}
-            className="px-2 border rounded-lg hover:bg-red-200 hover:text-red-500"
-          />
+          {children ?? (
+            <Trash2
+              size={32}
+              className="px-2 border rounded-lg hover:bg-red-200 hover:text-red-500"
+            />
+          )}
         </AlertDialogTrigger>
       </div>
       <AlertDialogContent>

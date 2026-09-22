@@ -11,8 +11,6 @@ export function ProjectDetails({
   createdAt,
   updatedAt,
   members,
-  description,
-  onDescriptionChange,
 }: {
   id: string;
   owner: UserType;
@@ -20,8 +18,6 @@ export function ProjectDetails({
   createdAt: Date;
   updatedAt: Date;
   members: MemberType[];
-  description: string;
-  onDescriptionChange?: (description: string) => void;
 }) {
   return (
     <>
@@ -94,12 +90,9 @@ export function ProjectDetails({
             <span className="text-sm text-muted-foreground">No members</span>
           )}
         </PropertyRow>
-        <DescriptionDetail
-          projectId={id}
-          role={role}
-          description={description}
-          onDescriptionChange={onDescriptionChange}
-        />
+
+        {/* 项目详情 */}
+        <DescriptionDetail projectId={id} role={role} />
       </div>
     </>
   );

@@ -3,6 +3,9 @@ import { requireAuth, checkProjectAccess } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse } from "@/types/api";
 import { broadcast } from "@/lib/sse";
+import { TaskState } from "@/types/board";
+
+const VALID_STATES = Object.values(TaskState) as string[];
 
 export async function POST(
   request: NextRequest,
@@ -13,16 +16,21 @@ export async function POST(
     const { id: cardId } = await params;
 
     const body = await request.json();
-    const { columnId, order } = body as { columnId?: string; order?: number };
+    const { state, order } = body as { state?: string; order?: number };
 
-    if (columnId === undefined || order === undefined) {
-      const err = errorResponse("缺少必要参数 columnId 或 order");
+    if (state === undefined || order === undefined) {
+      const err = errorResponse("缺少必要参数 state 或 order");
+      return NextResponse.json(err.response, { status: err.status });
+    }
+
+    if (!VALID_STATES.includes(state)) {
+      const err = errorResponse("无效的任务状态");
       return NextResponse.json(err.response, { status: err.status });
     }
 
     const card = await prisma.card.findUnique({
       where: { id: cardId },
-      select: { columnId: true, column: { select: { projectId: true } } },
+      select: { state: true, projectId: true },
     });
 
     if (!card) {
@@ -30,29 +38,31 @@ export async function POST(
       return NextResponse.json(err.response, { status: err.status });
     }
 
-    const member = await checkProjectAccess(card.column.projectId, user.id);
-    if (!member) {
-      const err = errorResponse("无权操作该卡片", 403);
-      return NextResponse.json(err.response, { status: err.status });
+    if (card.projectId) {
+      const member = await checkProjectAccess(card.projectId, user.id);
+      if (!member) {
+        const err = errorResponse("无权操作该卡片", 403);
+        return NextResponse.json(err.response, { status: err.status });
+      }
     }
 
-    const fromColumnId = card.columnId;
-    const isMove = fromColumnId !== columnId;
+    const fromState = card.state;
+    const isMove = fromState !== state;
 
     const updatedCard = await prisma.$transaction(async (tx) => {
       const result = await tx.card.update({
         where: { id: cardId },
-        data: { columnId, order },
+        data: { state: state as TaskState, order },
       });
 
-      if (isMove) {
+      if (isMove && card.projectId) {
         await tx.activity.create({
           data: {
-            projectId: card.column.projectId,
+            projectId: card.projectId,
             userId: user.id,
             cardId,
             action: "MOVE_CARD",
-            details: JSON.stringify({ fromColumnId, toColumnId: columnId }),
+            details: JSON.stringify({ fromState, toState: state }),
           },
         });
       }
@@ -60,12 +70,14 @@ export async function POST(
       return result;
     });
 
-    broadcast(card.column.projectId, "card:moved", {
-      cardId,
-      fromColumnId,
-      toColumnId: columnId,
-      order,
-    });
+    if (card.projectId) {
+      broadcast(card.projectId, "card:moved", {
+        cardId,
+        fromState,
+        toState: state,
+        order,
+      });
+    }
 
     return NextResponse.json(successResponse(updatedCard));
   } catch (error) {

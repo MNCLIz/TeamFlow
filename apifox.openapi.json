@@ -1,0 +1,764 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "实时协作任务看板 API",
+    "description": "Next.js App Router + Prisma 7 + NextAuth v5 实现的项目看板后端接口。所有接口基于 Cookie 会话（NextAuth）鉴权，统一响应格式为 { success, data?, error? }。看板列为固定的四种任务状态（TaskState）：TODO=未开始、UP_NEXT=接下来、IN_PROGRESS=进行中、DONE=已完成。",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发环境"
+    }
+  ],
+  "tags": [
+    { "name": "Projects", "description": "项目管理" },
+    { "name": "Board", "description": "看板列（按任务状态分组）" },
+    { "name": "Cards", "description": "任务卡片" },
+    { "name": "Members", "description": "项目成员" },
+    { "name": "Realtime", "description": "SSE 实时事件流" }
+  ],
+  "security": [
+    { "sessionCookie": [] }
+  ],
+  "paths": {
+    "/api/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "获取当前用户参与的项目列表",
+        "description": "返回当前用户作为成员参与的所有项目，含所有者、成员列表和当前用户角色，按加入时间倒序。",
+        "responses": {
+          "200": {
+            "description": "项目列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseProjectList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "创建项目",
+        "description": "创建项目并自动将当前用户设为 ADMIN 成员。看板列为固定的四种任务状态，不随项目创建。返回项目详情（含 role 和 activityCount）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProjectRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseProjectDetail" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/projects/{id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "get": {
+        "tags": ["Projects"],
+        "summary": "获取项目详情",
+        "description": "返回项目基本信息、所有者、成员列表，以及当前用户在项目中的角色（role）和活动数量（activityCount）。",
+        "responses": {
+          "200": {
+            "description": "项目详情",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseProjectDetail" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "更新项目（仅 ADMIN）",
+        "description": "更新项目名称或描述，至少提供一个字段。name 不能为空字符串；description 传 null 或空清除。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProjectRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseProject" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "删除项目（仅 ADMIN）",
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseDeleted" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/projects/{id}/columns": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "get": {
+        "tags": ["Board"],
+        "summary": "获取项目看板列数据",
+        "description": "按固定的四种任务状态（TODO/UP_NEXT/IN_PROGRESS/DONE）对项目卡片分组，始终返回 4 个列，卡片按 order 升序排列。",
+        "responses": {
+          "200": {
+            "description": "看板列数组（固定 4 列）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseBoardColumnList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/projects/{id}/cards": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "post": {
+        "tags": ["Cards"],
+        "summary": "在项目内创建卡片",
+        "description": "在项目内创建卡片，需指定 title。未指定 state 时默认 TODO（未开始），非法 state 返回 400；未指定 priority 时默认 LOW。新卡片自动排到目标状态列末尾。会写入 CREATE_CARD 活动记录并通过 SSE 广播 card:created。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProjectCardRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCard" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/projects/{id}/members": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "get": {
+        "tags": ["Members"],
+        "summary": "获取项目成员列表",
+        "description": "返回项目成员（含用户信息），按加入时间升序。",
+        "responses": {
+          "200": {
+            "description": "成员列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseMemberList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Members"],
+        "summary": "添加项目成员（仅 ADMIN）",
+        "description": "添加成员，role 非法或缺省时默认 MEMBER。用户不存在返回 404，已是成员返回 400。写入 ADD_MEMBER 活动并广播 member:added。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddMemberRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "添加成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseMember" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "delete": {
+        "tags": ["Members"],
+        "summary": "移除项目成员（仅 ADMIN）",
+        "description": "通过查询参数 userId 指定要移除的成员，不能移除自己（400）。成员不存在返回 404。写入 REMOVE_MEMBER 活动并广播 member:removed。",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "description": "要移除的用户 ID，不能为当前用户自己",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "移除成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseDeleted" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/projects/{id}/events": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "get": {
+        "tags": ["Realtime"],
+        "summary": "SSE 实时事件流",
+        "description": "Server-Sent Events 长连接。连接成功后收到 connected 事件（data 含 userId），每 30s 发送一次心跳注释。业务事件类型：card:created / card:updated / card:deleted（data 为卡片对象）、card:moved（data 为 { cardId, fromState, toState, order }）、member:added（data 为成员对象）、member:removed（data 为 { userId }）。",
+        "responses": {
+          "200": {
+            "description": "SSE 事件流",
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" },
+                "example": "event: connected\ndata: {\"userId\":\"u_xxx\"}\n\n"
+              }
+            }
+          },
+          "401": {
+            "description": "未登录",
+            "content": { "text/plain": { "schema": { "type": "string", "example": "Unauthorized" } } }
+          },
+          "403": {
+            "description": "无权访问该项目",
+            "content": { "text/plain": { "schema": { "type": "string", "example": "Forbidden" } } }
+          }
+        }
+      }
+    },
+    "/api/cards": {
+      "post": {
+        "tags": ["Cards"],
+        "summary": "创建卡片（通用 / 可不属于项目）",
+        "description": "创建卡片。未指定 state 时默认 TODO（未开始），非法 state 返回 400；未指定 priority 时默认 LOW；未指定 projectId 时卡片不属于任何项目，且不写活动记录、不广播。指定 projectId 时会校验成员权限并广播 card:created。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCardRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCard" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/cards/{id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/CardId" }
+      ],
+      "patch": {
+        "tags": ["Cards"],
+        "summary": "更新卡片",
+        "description": "更新卡片字段（title / description / priority / dueDate / assigneeId / state），至少提供一个字段。priority 或 state 非法返回 400。state 与当前状态不同时卡片移动到目标状态列底部（order = 目标列最大 order + 1），若卡片属于某项目会额外写 MOVE_CARD 活动记录（details 含 fromState/toState）并广播 card:moved。若卡片属于某项目则校验成员权限、写 UPDATE_CARD 活动记录（details 仅含 state/order 之外的更新字段）并广播 card:updated；无项目卡片仅更新字段。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCardRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCard" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "delete": {
+        "tags": ["Cards"],
+        "summary": "删除卡片",
+        "description": "删除卡片。若卡片属于某项目则校验成员权限、写 DELETE_CARD 活动记录并广播 card:deleted。",
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseDeleted" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/cards/{id}/move": {
+      "parameters": [
+        { "$ref": "#/components/parameters/CardId" }
+      ],
+      "post": {
+        "tags": ["Cards"],
+        "summary": "移动卡片（跨状态 / 排序）",
+        "description": "更新卡片的 state 与 order。state 和 order 均必填，非法 state 返回 400。跨状态移动时若卡片属于某项目会写 MOVE_CARD 活动记录（details 含 fromState/toState）并广播 card:moved。返回更新后的卡片。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MoveCardRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "移动成功，返回更新后的卡片",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCard" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "authjs.session-token",
+        "description": "NextAuth v5 会话 Cookie。生产环境（HTTPS）下名称为 __Secure-authjs.session-token。请先通过 /api/auth 登录后由浏览器自动携带。"
+      }
+    },
+    "parameters": {
+      "ProjectId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "项目 ID（cuid）",
+        "schema": { "type": "string" }
+      },
+      "CardId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "卡片 ID（cuid）",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求参数错误",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiErrorResponse" },
+            "example": { "success": false, "error": "缺少必要参数" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未登录",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiErrorResponse" },
+            "example": { "success": false, "error": "未登录" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "无权限",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiErrorResponse" },
+            "example": { "success": false, "error": "无权访问该项目" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "资源不存在",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiErrorResponse" },
+            "example": { "success": false, "error": "不存在" }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "服务器内部错误",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiErrorResponse" },
+            "example": { "success": false, "error": "操作失败" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "TaskState": {
+        "type": "string",
+        "enum": ["TODO", "UP_NEXT", "IN_PROGRESS", "DONE"],
+        "description": "任务状态：TODO=未开始、UP_NEXT=接下来、IN_PROGRESS=进行中、DONE=已完成"
+      },
+      "Priority": {
+        "type": "string",
+        "enum": ["LOW", "MEDIUM", "HIGH"],
+        "description": "优先级"
+      },
+      "MemberRole": {
+        "type": "string",
+        "enum": ["ADMIN", "MEMBER"],
+        "description": "项目成员角色"
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true },
+          "image": { "type": "string", "nullable": true }
+        }
+      },
+      "UserBrief": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string", "nullable": true },
+          "image": { "type": "string", "nullable": true }
+        }
+      },
+      "Card": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "priority": { "$ref": "#/components/schemas/Priority" },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true },
+          "order": { "type": "number", "format": "float", "description": "排序位置，支持小数间隔" },
+          "state": { "$ref": "#/components/schemas/TaskState" },
+          "projectId": { "type": "string", "nullable": true, "description": "所属项目，null 表示不属于任何项目" },
+          "createdById": { "type": "string" },
+          "assigneeId": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "BoardColumn": {
+        "type": "object",
+        "description": "看板列（按任务状态分组，固定 4 列）",
+        "properties": {
+          "state": { "$ref": "#/components/schemas/TaskState" },
+          "name": { "type": "string", "description": "状态中文名称", "example": "未开始" },
+          "projectId": { "type": "string", "description": "所请求看板的项目 ID" },
+          "cards": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Card" }
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "ownerId": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProjectListItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "role": { "$ref": "#/components/schemas/MemberRole" },
+              "owner": { "$ref": "#/components/schemas/UserBrief" },
+              "members": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Member" }
+              }
+            }
+          }
+        ]
+      },
+      "ProjectDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "role": { "$ref": "#/components/schemas/MemberRole" },
+              "activityCount": { "type": "integer", "description": "项目活动记录总数" },
+              "owner": { "$ref": "#/components/schemas/UserBrief" },
+              "members": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Member" }
+              }
+            }
+          }
+        ]
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "role": { "$ref": "#/components/schemas/MemberRole" },
+          "joinedAt": { "type": "string", "format": "date-time" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "example": "我的项目", "description": "项目名称，不能为空" },
+          "description": { "type": "string", "nullable": true, "example": "项目描述" }
+        }
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "description": "至少提供一个字段",
+        "properties": {
+          "name": { "type": "string", "description": "项目名称，不能为空字符串" },
+          "description": { "type": "string", "nullable": true, "description": "项目描述，传 null 或空清除" }
+        }
+      },
+      "CreateProjectCardRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "example": "任务标题" },
+          "description": { "type": "string", "nullable": true },
+          "priority": {
+            "allOf": [{ "$ref": "#/components/schemas/Priority" }],
+            "description": "优先级，非法或缺省时为 LOW"
+          },
+          "state": {
+            "allOf": [{ "$ref": "#/components/schemas/TaskState" }],
+            "description": "任务状态，缺省为 TODO（未开始），非法值返回 400",
+            "example": "TODO"
+          },
+          "assigneeId": { "type": "string", "nullable": true, "description": "负责人用户 ID" }
+        }
+      },
+      "CreateCardRequest": {
+        "allOf": [
+          { "$ref": "#/components/schemas/CreateProjectCardRequest" },
+          {
+            "type": "object",
+            "properties": {
+              "projectId": { "type": "string", "nullable": true, "description": "所属项目，缺省为 null（不属于任何项目）；传入时校验项目成员权限" }
+            }
+          }
+        ]
+      },
+      "UpdateCardRequest": {
+        "type": "object",
+        "description": "至少提供一个字段",
+        "properties": {
+          "title": { "type": "string", "description": "标题，不能为空字符串" },
+          "description": { "type": "string", "nullable": true },
+          "priority": { "$ref": "#/components/schemas/Priority" },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true, "description": "截止日期（ISO 8601），传 null 清除" },
+          "assigneeId": { "type": "string", "nullable": true, "description": "负责人用户 ID，传 null 清除" },
+          "state": { "$ref": "#/components/schemas/TaskState", "description": "任务状态。与当前状态不同时卡片移动到目标状态列底部（order 重新计算为目标列最大 order + 1）" }
+        }
+      },
+      "MoveCardRequest": {
+        "type": "object",
+        "required": ["state", "order"],
+        "properties": {
+          "state": {
+            "allOf": [{ "$ref": "#/components/schemas/TaskState" }],
+            "description": "目标任务状态",
+            "example": "IN_PROGRESS"
+          },
+          "order": { "type": "number", "format": "float", "description": "目标排序位置（支持小数间隔）", "example": 1 }
+        }
+      },
+      "AddMemberRequest": {
+        "type": "object",
+        "required": ["userId"],
+        "properties": {
+          "userId": { "type": "string", "description": "要添加的用户 ID" },
+          "role": {
+            "allOf": [{ "$ref": "#/components/schemas/MemberRole" }],
+            "description": "成员角色，非法或缺省时为 MEMBER"
+          }
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "ApiResponseDeleted": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": { "deleted": { "type": "boolean", "example": true } }
+          }
+        }
+      },
+      "ApiResponseCard": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/Card" }
+        }
+      },
+      "ApiResponseProject": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/Project" }
+        }
+      },
+      "ApiResponseProjectDetail": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/ProjectDetail" }
+        }
+      },
+      "ApiResponseProjectList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ProjectListItem" }
+          }
+        }
+      },
+      "ApiResponseBoardColumnList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BoardColumn" },
+            "description": "固定 4 列，顺序为 TODO / UP_NEXT / IN_PROGRESS / DONE"
+          }
+        }
+      },
+      "ApiResponseMember": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/Member" }
+        }
+      },
+      "ApiResponseMemberList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Member" }
+          }
+        }
+      }
+    }
+  }
+}

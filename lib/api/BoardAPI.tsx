@@ -1,5 +1,5 @@
 import { request } from "@/lib/request";
-import { CardType, ColumnType } from "@/types/board";
+import { CardType, ColumnType, TaskState } from "@/types/board";
 
 // 创建任务卡片
 interface PostCreateCardAPIParams {
@@ -7,9 +7,8 @@ interface PostCreateCardAPIParams {
   title: string;
   description?: string;
   priority?: string;
-  columnId: string;
+  state: TaskState;
   assigneeId?: string;
-  labelIds?: string[];
 }
 export const postCreateCardAPI = async (params: PostCreateCardAPIParams) => {
   return await request<PostCreateCardAPIParams, CardType>({
@@ -26,7 +25,7 @@ interface PatchCardAPIParams {
   description?: string;
   priority?: string;
   assigneeId?: string;
-  labelIds?: string[];
+  state?: TaskState;
 }
 export const patchCardAPI = async (params: PatchCardAPIParams) => {
   return await request<PatchCardAPIParams, CardType>({
@@ -53,17 +52,11 @@ export const deleteCardAPI = async (params: DeleteCardAPIParams) => {
 // 移动任务卡片
 interface PostMoveCardAPIParams {
   id: string;
-  toColumnId: string;
-  order: number;
-}
-interface PostMoveCardAPIResponse {
-  cardId: string;
-  fromColumnId: string;
-  toColumnId: string;
+  state: TaskState;
   order: number;
 }
 export const postMoveCardAPI = async (params: PostMoveCardAPIParams) => {
-  return await request<PostMoveCardAPIParams, PostMoveCardAPIResponse>({
+  return await request<PostMoveCardAPIParams, CardType>({
     url: `/cards/${params.id}/move`,
     method: "POST",
     data: params,

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/tests
+/test-results
+/playwright-report
 
 # next.js
 /.next/
@@ -61,3 +64,6 @@ skills-lock.json
 
 # Node cache with Chinese characters
 你的node_cache文件夹路径/
+
+# Utility scripts (personal tooling, not part of source)
+/scripts/

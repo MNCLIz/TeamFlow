@@ -38,18 +38,6 @@ export function TasksList({ cards }: TasksListProps) {
             )}
           </div>
           <div className="flex items-center gap-3 ml-4 shrink-0">
-            {card.labels.length > 0 && (
-              <div className="flex gap-1">
-                {card.labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: label.color }}
-                    title={label.name}
-                  />
-                ))}
-              </div>
-            )}
             <span
               className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[card.priority]}`}
             >

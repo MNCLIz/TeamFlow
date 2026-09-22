@@ -19,18 +19,6 @@ export async function GET() {
               },
               orderBy: { joinedAt: "asc" },
             },
-            columns: {
-              include: {
-                cards: {
-                  include: {
-                    labels: true,
-                    assignee: { select: { id: true, name: true, image: true } },
-                  },
-                  orderBy: { order: "asc" },
-                },
-              },
-              orderBy: { order: "asc" },
-            },
           },
         },
       },
@@ -45,7 +33,6 @@ export async function GET() {
       ownerId: m.project.ownerId,
       owner: m.project.owner,
       members: m.project.members,
-      columns: m.project.columns,
       createdAt: m.project.createdAt,
       updatedAt: m.project.updatedAt,
     }));
@@ -90,20 +77,6 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const defaultColumns = [
-        { name: "未开始", order: 0 },
-        { name: "接下来", order: 1 },
-        { name: "进行中", order: 2 },
-        { name: "已完成", order: 3 },
-      ];
-
-      await tx.column.createMany({
-        data: defaultColumns.map((col) => ({
-          ...col,
-          projectId: newProject.id,
-        })),
-      });
-
       return tx.project.findUniqueOrThrow({
         where: { id: newProject.id },
         include: {
@@ -111,10 +84,6 @@ export async function POST(request: NextRequest) {
           members: {
             include: { user: { select: { id: true, name: true, image: true } } },
             orderBy: { joinedAt: "asc" },
-          },
-          columns: {
-            orderBy: { order: "asc" },
-            include: { cards: { orderBy: { order: "asc" } } },
           },
           _count: { select: { activities: true } },
         },

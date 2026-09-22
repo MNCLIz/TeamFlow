@@ -2,16 +2,14 @@
 
 import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
 import { useEffect, useState } from "react";
-import { Column } from "./Column";
+import { Column } from "@/app/projects/[id]/Tasks/board/Column";
 import { useBoardStore } from "@/store/boardStore";
 
-export function Board() {
+export function TasksBoard() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const columns = useBoardStore((state) => state.columns);
 
-  useEffect(() => {
-    console.log("columns改变", columns);
-  }, [columns]);
+  useEffect(() => {}, [columns]);
 
   return (
     <DndContext
@@ -19,10 +17,10 @@ export function Board() {
       onDragStart={({ active }) => setActiveId(active.id as string)}
       onDragEnd={() => setActiveId(null)}
     >
-      <div className="flex gap-4 overflow-x-auto p-4 items-start">
+      <div className="flex gap-4 p-4 items-start flex-wrap">
         {columns.map((column) => (
           <Column
-            key={column.id}
+            key={column.state}
             column={column}
             projectId={column.projectId}
           />

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { toast } from "sonner";
 
 const PUBLIC_PATHS = ["/", "/login", "/api/auth"];
 
@@ -20,7 +19,6 @@ export async function proxy(request: NextRequest) {
 
   if (!session) {
     if (pathname.startsWith("/api/")) {
-      toast.error("未登录", {position: "top-center"});
       return NextResponse.json(
         { success: false, error: { message: "未登录", code: "UNAUTHORIZED" } },
         { status: 401 }

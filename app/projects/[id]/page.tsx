@@ -15,7 +15,7 @@ export default async function ProjectDetails({
 
   return (
     <AuthProvider>
-      <div className="flex h-screen flex-col">
+      <div className="flex min-h-screen flex-col">
         <Header title="Projects" extra={CurrentProject.name} />
         <ProjectClient project={CurrentProject} />
       </div>

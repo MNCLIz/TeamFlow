@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
 import { ProjectType } from "@/types/project";
 import { Button } from "@/components/ui/button";
-import { ProjectTasks } from "./Tasks/ProjectTasks";
+import { TasksBoard } from "./Tasks/TasksBoard";
 import { ProjectDetails } from "./Details/ProjectDetails";
 import { useProjectStore } from "@/store/projectStore";
 import { useBoardStore } from "@/store/boardStore";
+import { EditableTitle } from "@/components/shared/EditableTitle";
 
 interface ProjectDetailsClientProps {
   project: ProjectType | null;
@@ -18,10 +19,11 @@ type TabView = "detail" | "tasks";
 
 export default function ProjectClient({ project }: ProjectDetailsClientProps) {
   const [activeTab, setActiveTab] = useState<TabView>("detail");
-  const [description, setDescription] = useState(project?.description ?? "");
   const [title, setTitle] = useState(project?.name ?? "");
 
-  const setColumns = useBoardStore((state) => state.setColumns);
+  const updateName = useProjectStore((state) => state.updateProject);
+
+  const fetchColumns = useBoardStore((state) => state.fetchColumns);
 
   useEffect(() => {
     if (!project) {
@@ -32,17 +34,18 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
 
   if (!project) return null;
 
-  const { id, createdAt, updatedAt, role, owner, members, columns } = project;
-  setColumns(columns);
+  const { id, createdAt, updatedAt, role, owner, members } = project;
+  fetchColumns(id);
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className=" mx-40 px-8 py-10 space-y-10">
         <EditableTitle
-          projectId={id}
+          id={id}
           value={title}
           onChange={setTitle}
           readOnly={role !== "ADMIN"}
+          updateName={updateName}
         />
         <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
         {activeTab === "detail" && (
@@ -53,12 +56,10 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
             createdAt={createdAt}
             updatedAt={updatedAt}
             members={members}
-            description={description}
-            onDescriptionChange={setDescription}
           />
         )}
       </div>
-      {activeTab === "tasks" && <ProjectTasks />}
+      {activeTab === "tasks" && <TasksBoard />}
     </div>
   );
 }
@@ -101,65 +102,5 @@ function Navigation({
         </Button>
       </div>
     </>
-  );
-}
-
-function EditableTitle({
-  projectId,
-  value,
-  onChange,
-  readOnly,
-}: {
-  projectId: string;
-  value: string;
-  onChange: (v: string) => void;
-  readOnly: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const lastSavedRef = useRef(value);
-  const updateProject = useProjectStore((state) => state.updateProject);
-
-  const save = async () => {
-    const trimmed = inputRef.current?.value.trim() ?? "";
-    if (trimmed === lastSavedRef.current) return;
-    if (!trimmed) {
-      if (inputRef.current) inputRef.current.value = lastSavedRef.current;
-      return;
-    }
-    try {
-      await updateProject({ id: projectId, name: trimmed });
-      lastSavedRef.current = trimmed;
-      onChange(trimmed);
-    } catch {
-      toast.error("项目名称更新失败");
-      if (inputRef.current) inputRef.current.value = lastSavedRef.current;
-    }
-  };
-
-  useEffect(() => {
-    const handleBeforeUnload = () => save();
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      save();
-    };
-  }, [projectId]);
-
-  if (readOnly) {
-    return <h1 className="text-3xl font-bold tracking-tight">{value}</h1>;
-  }
-
-  return (
-    <input
-      ref={inputRef}
-      defaultValue={value}
-      onBlur={save}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.currentTarget.blur();
-        }
-      }}
-      className="text-3xl font-bold tracking-tight bg-transparent border-none outline-none focus:ring-0 rounded px-1 -ml-1 w-full"
-    />
   );
 }

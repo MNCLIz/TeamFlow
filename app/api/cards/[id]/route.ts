@@ -3,9 +3,10 @@ import { requireAuth, checkProjectAccess } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse } from "@/types/api";
 import { broadcast } from "@/lib/sse";
-import { Priority } from "@/types/board";
+import { Priority, TaskState } from "@/types/board";
 
 const VALID_PRIORITIES: Priority[] = [Priority.Low, Priority.Medium, Priority.High];
+const VALID_STATES = Object.values(TaskState) as string[];
 
 export async function PATCH(
   request: NextRequest,
@@ -16,13 +17,13 @@ export async function PATCH(
     const { id: cardId } = await params;
 
     const body = await request.json();
-    const { title, description, priority, dueDate, assigneeId, labelIds } = body as {
+    const { title, description, priority, dueDate, assigneeId, state } = body as {
       title?: string;
       description?: string | null;
       priority?: Priority;
       dueDate?: string | null;
       assigneeId?: string | null;
-      labelIds?: string[];
+      state?: TaskState;
     };
 
     if (
@@ -31,7 +32,7 @@ export async function PATCH(
       priority === undefined &&
       dueDate === undefined &&
       assigneeId === undefined &&
-      labelIds === undefined
+      state === undefined
     ) {
       const err = errorResponse("没有提供需要更新的字段");
       return NextResponse.json(err.response, { status: err.status });
@@ -42,6 +43,11 @@ export async function PATCH(
       return NextResponse.json(err.response, { status: err.status });
     }
 
+    if (state !== undefined && !VALID_STATES.includes(state)) {
+      const err = errorResponse("无效的任务状态");
+      return NextResponse.json(err.response, { status: err.status });
+    }
+
     if (title !== undefined && title.trim().length === 0) {
       const err = errorResponse("标题不能为空");
       return NextResponse.json(err.response, { status: err.status });
@@ -49,7 +55,7 @@ export async function PATCH(
 
     const card = await prisma.card.findUnique({
       where: { id: cardId },
-      select: { column: { select: { projectId: true } } },
+      select: { projectId: true, state: true },
     });
 
     if (!card) {
@@ -57,10 +63,12 @@ export async function PATCH(
       return NextResponse.json(err.response, { status: err.status });
     }
 
-    const member = await checkProjectAccess(card.column.projectId, user.id);
-    if (!member) {
-      const err = errorResponse("无权操作该卡片", 403);
-      return NextResponse.json(err.response, { status: err.status });
+    if (card.projectId) {
+      const member = await checkProjectAccess(card.projectId, user.id);
+      if (!member) {
+        const err = errorResponse("无权操作该卡片", 403);
+        return NextResponse.json(err.response, { status: err.status });
+      }
     }
 
     const data: Record<string, unknown> = {};
@@ -70,37 +78,68 @@ export async function PATCH(
     if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
     if (assigneeId !== undefined) data.assigneeId = assigneeId;
 
-    const updatedCard = await prisma.$transaction(async (tx) => {
-      if (labelIds !== undefined) {
-        await tx.card.update({
-          where: { id: cardId },
-          data: { labels: { set: labelIds.map((id) => ({ id })) } },
-        });
-      }
+    const fromState = card.state;
+    const isStateChange = state !== undefined && state !== fromState;
 
+    if (isStateChange) {
+      const lastCard = await prisma.card.findFirst({
+        where: { state },
+        orderBy: { order: "desc" },
+        select: { order: true },
+      });
+      data.state = state;
+      data.order = (lastCard?.order ?? -1) + 1;
+    }
+
+    const updatedCard = await prisma.$transaction(async (tx) => {
       const result = await tx.card.update({
         where: { id: cardId },
         data,
-        include: { labels: true },
       });
 
-      const changedFields = Object.keys(data);
-      if (labelIds !== undefined) changedFields.push("labelIds");
+      if (card.projectId) {
+        if (isStateChange) {
+          await tx.activity.create({
+            data: {
+              projectId: card.projectId,
+              userId: user.id,
+              cardId,
+              action: "MOVE_CARD",
+              details: JSON.stringify({ fromState, toState: state }),
+            },
+          });
+        }
 
-      await tx.activity.create({
-        data: {
-          projectId: card.column.projectId,
-          userId: user.id,
-          cardId,
-          action: "UPDATE_CARD",
-          details: JSON.stringify(changedFields),
-        },
-      });
+        const updatedFields = Object.keys(data).filter(
+          (key) => key !== "state" && key !== "order"
+        );
+        if (updatedFields.length > 0) {
+          await tx.activity.create({
+            data: {
+              projectId: card.projectId,
+              userId: user.id,
+              cardId,
+              action: "UPDATE_CARD",
+              details: JSON.stringify(updatedFields),
+            },
+          });
+        }
+      }
 
       return result;
     });
 
-    broadcast(card.column.projectId, "card:updated", updatedCard);
+    if (card.projectId) {
+      broadcast(card.projectId, "card:updated", updatedCard);
+      if (isStateChange) {
+        broadcast(card.projectId, "card:moved", {
+          cardId,
+          fromState,
+          toState: state,
+          order: updatedCard.order,
+        });
+      }
+    }
 
     return NextResponse.json(successResponse(updatedCard));
   } catch (error) {
@@ -123,7 +162,7 @@ export async function DELETE(
 
     const card = await prisma.card.findUnique({
       where: { id: cardId },
-      select: { title: true, column: { select: { projectId: true } } },
+      select: { title: true, projectId: true },
     });
 
     if (!card) {
@@ -131,27 +170,33 @@ export async function DELETE(
       return NextResponse.json(err.response, { status: err.status });
     }
 
-    const member = await checkProjectAccess(card.column.projectId, user.id);
-    if (!member) {
-      const err = errorResponse("无权操作该卡片", 403);
-      return NextResponse.json(err.response, { status: err.status });
+    if (card.projectId) {
+      const member = await checkProjectAccess(card.projectId, user.id);
+      if (!member) {
+        const err = errorResponse("无权操作该卡片", 403);
+        return NextResponse.json(err.response, { status: err.status });
+      }
     }
 
     await prisma.$transaction(async (tx) => {
       await tx.card.delete({ where: { id: cardId } });
 
-      await tx.activity.create({
-        data: {
-          projectId: card.column.projectId,
-          userId: user.id,
-          cardId,
-          action: "DELETE_CARD",
-          details: JSON.stringify({ title: card.title }),
-        },
-      });
+      if (card.projectId) {
+        await tx.activity.create({
+          data: {
+            projectId: card.projectId,
+            userId: user.id,
+            cardId,
+            action: "DELETE_CARD",
+            details: JSON.stringify({ title: card.title }),
+          },
+        });
+      }
     });
 
-    broadcast(card.column.projectId, "card:deleted", { cardId });
+    if (card.projectId) {
+      broadcast(card.projectId, "card:deleted", { cardId });
+    }
 
     return NextResponse.json(successResponse({ deleted: true }));
   } catch (error) {

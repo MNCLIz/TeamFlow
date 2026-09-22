@@ -1,18 +1,21 @@
-import { MdEditor } from "./MdEditor";
+import { MdEditor } from "@/components/shared/MdEditor";
 import { MemberRole } from "@/types/project";
+import { useProjectStore } from "@/store/projectStore";
 
 export function DescriptionDetail({
   projectId,
   role,
-  description = "",
-  onDescriptionChange,
 }: {
   projectId: string;
   role: MemberRole;
-  description: string;
-  onDescriptionChange?: (description: string) => void;
 }) {
   const readOnly = role === "MEMBER";
+
+  const projects = useProjectStore((state) => state.projects);
+  const project = projects.find((project) => project.id === projectId);
+  const { description } = project ?? {};
+
+  const updateDescription = useProjectStore((state) => state.updateProject);
 
   return (
     <>
@@ -21,10 +24,10 @@ export function DescriptionDetail({
           description
         </div>
         <MdEditor
-          projectId={projectId}
+          id={projectId}
           defaultValue={description ?? ""}
           readOnly={readOnly}
-          onSave={onDescriptionChange}
+          updateDescription={updateDescription}
         />
       </div>
     </>

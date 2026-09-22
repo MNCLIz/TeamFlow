@@ -16,15 +16,18 @@ import { trailing } from "@milkdown/kit/plugin/trailing";
 import { replaceAll } from "@milkdown/kit/utils";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { nord } from "@milkdown/theme-nord";
-import "./milkdown-scoped.css";
-import { useProjectStore } from "@/store/projectStore";
+import "@/app/projects/[id]/Details/milkdown-scoped.css";
 
 interface MdEditorProps {
-  projectId: string;
+  id: string;
   defaultValue?: string;
   readOnly?: boolean;
   placeholder?: string;
-  onSave?: (description: string) => void;
+  updateDescription: (params: {
+    id: string;
+    name?: string;
+    description?: string;
+  }) => Promise<void>;
 }
 
 function isEmptyMarkdown(markdown: string | null): boolean {
@@ -32,11 +35,11 @@ function isEmptyMarkdown(markdown: string | null): boolean {
 }
 
 function EditorContent({
-  projectId,
+  id: id,
   defaultValue = "",
   readOnly = false,
   placeholder = "Add a description...",
-  onSave,
+  updateDescription,
 }: MdEditorProps) {
   // 临时保存markdown
   const tempRef = useRef(defaultValue ?? "");
@@ -50,28 +53,30 @@ function EditorContent({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 保存描述
-  const latestOnSave = useRef(onSave);
+  const latestOnSave = useRef(updateDescription);
   useEffect(() => {
-    latestOnSave.current = onSave;
+    latestOnSave.current = updateDescription;
   });
 
   const saveDescription = useCallback(async () => {
     const current = tempRef.current;
     if (current === lastSavedRef.current) return;
     try {
-      await useProjectStore.getState().updateProject({
-        id: projectId,
+      await updateDescription({
+        id: id,
         description: current,
       });
       lastSavedRef.current = current;
-      latestOnSave.current?.(current);
+      latestOnSave.current?.({ id, description: current });
     } catch {
       // TODO: 错误处理
     }
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // 处理markdown更新 — 用 ref 保持最新引用，避免 useEditor factory 重建
   const latestSetIsEmpty = useRef(setIsEmpty);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     latestSetIsEmpty.current = setIsEmpty;
   });
@@ -165,7 +170,8 @@ function EditorContent({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [projectId, readOnly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, readOnly]);
 
   // 点击容器时聚焦
   const handleContainerClick = useCallback(() => {

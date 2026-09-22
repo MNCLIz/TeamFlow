@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ColumnType, CardType } from "@/types/board";
+import type { ColumnType, CardType, TaskState } from "@/types/board";
 import { immer } from "zustand/middleware/immer";
 import {
   getColumnAPI,
@@ -12,19 +12,14 @@ import {
 interface BoardState {
   columns: ColumnType[];
   isLoading: boolean;
-  setColumns: (columns: ColumnType[]) => void;
-  addCard: (card: CardType) => void;
-  setCard: (card: CardType) => void;
-  deleteCard: (cardId: string) => void;
   fetchColumns: (projectId: string) => Promise<void>;
   createCard: (params: {
     projectId: string;
     title: string;
     description?: string;
     priority?: string;
-    columnId: string;
+    state: TaskState;
     assigneeId?: string;
-    labelIds?: string[];
   }) => Promise<CardType>;
   updateCard: (params: {
     id: string;
@@ -32,48 +27,20 @@ interface BoardState {
     description?: string;
     priority?: string;
     assigneeId?: string;
-    labelIds?: string[];
+    state?: TaskState;
   }) => Promise<CardType>;
   removeCard: (cardId: string) => Promise<void>;
   moveCard: (params: {
     id: string;
-    toColumnId: string;
+    toState: TaskState;
     order: number;
   }) => Promise<void>;
+  updateCardDescription: (params: { id: string, name?: string, description?: string }) => Promise<void>;
 }
 
-export const useBoardStore = create<BoardState>()(immer((set, get) => ({
+export const useBoardStore = create<BoardState>()(immer((set) => ({
   columns: [],
   isLoading: false,
-  setColumns: (columns) => set((state) => {
-    state.columns = columns;
-  }),
-  addCard: (card: CardType) => {
-    set((state) => {
-      const column = state.columns.find((col) => col.id === card.columnId);
-      if (column) {
-        column.cards.push(card);
-      }
-    });
-  },
-  setCard: (card: CardType) => {
-    set((state) => {
-      for (const column of state.columns) {
-        const idx = column.cards.findIndex((c) => c.id === card.id);
-        if (idx !== -1) {
-          column.cards[idx] = card;
-          return;
-        }
-      }
-    });
-  },
-  deleteCard: (cardId: string) => {
-    set((state) => {
-      for (const column of state.columns) {
-        column.cards = column.cards.filter((card) => card.id !== cardId);
-      }
-    });
-  },
   fetchColumns: async (projectId: string) => {
     set((state) => { state.isLoading = true; });
     try {
@@ -88,20 +55,55 @@ export const useBoardStore = create<BoardState>()(immer((set, get) => ({
   },
   createCard: async (params) => {
     const card = await postCreateCardAPI(params);
-    get().addCard(card);
+    set((state) => {
+      const targetColumn = state.columns.find((col) => col.state === params.state);
+      if (targetColumn) {
+        targetColumn.cards.push(card);
+        targetColumn.cards.sort((a, b) => a.order - b.order);
+      }
+    });
     return card;
   },
   updateCard: async (params) => {
     const card = await patchCardAPI(params);
-    get().setCard(card);
+    set((state) => {
+      let sourceColumn: ColumnType | undefined;
+      let idx = -1;
+      for (const column of state.columns) {
+        idx = column.cards.findIndex((c) => c.id === params.id);
+        if (idx !== -1) {
+          sourceColumn = column;
+          break;
+        }
+      }
+      if (!sourceColumn || idx === -1) return;
+      if (sourceColumn.state !== card.state) {
+        sourceColumn.cards.splice(idx, 1);
+        const targetColumn = state.columns.find((col) => col.state === card.state);
+        if (targetColumn) {
+          targetColumn.cards.push(card);
+          targetColumn.cards.sort((a, b) => a.order - b.order);
+        }
+      } else {
+        sourceColumn.cards[idx] = card;
+      }
+    });
     return card;
   },
   removeCard: async (cardId: string) => {
     await deleteCardAPI({ id: cardId });
-    get().deleteCard(cardId);
+    set((state) => {
+      for (const column of state.columns) {
+        column.cards = column.cards.filter((card) => card.id !== cardId);
+      }
+    });
   },
   moveCard: async (params) => {
-    const result = await postMoveCardAPI(params);
+    const result = await postMoveCardAPI({
+      id: params.id,
+      state: params.toState,
+      order: params.order,
+    });
     set((state) => {
       let movedCard: CardType | undefined;
       for (const column of state.columns) {
@@ -113,8 +115,8 @@ export const useBoardStore = create<BoardState>()(immer((set, get) => ({
       }
       if (movedCard) {
         movedCard.order = result.order;
-        movedCard.columnId = result.toColumnId;
-        const targetColumn = state.columns.find((col) => col.id === result.toColumnId);
+        movedCard.state = result.state;
+        const targetColumn = state.columns.find((col) => col.state === result.state);
         if (targetColumn) {
           targetColumn.cards.push(movedCard);
           targetColumn.cards.sort((a, b) => a.order - b.order);
@@ -122,4 +124,18 @@ export const useBoardStore = create<BoardState>()(immer((set, get) => ({
       }
     });
   },
+  // 更新卡片标题与描述
+  updateCardDescription: async (params: { id: string, name?: string, description?: string }) => {
+    await patchCardAPI({ id: params.id, title: params.name, description: params.description });
+    set((state) => {
+      for (const column of state.columns) {
+        const idx = column.cards.findIndex((c) => c.id === params.id);
+        if (idx !== -1) {
+          if(params.name) column.cards[idx].title = params.name;
+          if(params.description) column.cards[idx].description = params.description;
+          break;
+        }
+      }
+    });
+  }
 })));

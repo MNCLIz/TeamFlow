@@ -25,10 +25,6 @@ export async function GET(
           include: { user: { select: { id: true, name: true, image: true } } },
           orderBy: { joinedAt: "asc" },
         },
-        columns: {
-          orderBy: { order: "asc" },
-          include: { cards: { orderBy: { order: "asc" } } },
-        },
         _count: { select: { activities: true } },
       },
     });
