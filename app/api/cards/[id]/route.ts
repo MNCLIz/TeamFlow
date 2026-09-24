@@ -179,19 +179,18 @@ export async function DELETE(
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.card.delete({ where: { id: cardId } });
-
       if (card.projectId) {
         await tx.activity.create({
           data: {
             projectId: card.projectId,
             userId: user.id,
-            cardId,
             action: "DELETE_CARD",
             details: JSON.stringify({ title: card.title }),
           },
         });
       }
+
+      await tx.card.delete({ where: { id: cardId } });
     });
 
     if (card.projectId) {

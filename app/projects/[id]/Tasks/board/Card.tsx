@@ -14,7 +14,7 @@ const priorityDotColor: Record<Priority, string> = {
   [Priority.Medium]: "bg-yellow-500",
   [Priority.Low]: "bg-green-500",
 };
-import { CardDetailDrawer } from "./CardDetailDrawer";
+import { CardDetailDrawer } from "../../../../../components/shared/CardDetail/CardDetailDrawer";
 
 interface CardItemProps {
   card: CardType;
@@ -35,8 +35,9 @@ export function CardItem({ card }: CardItemProps) {
   const handleDelete = async (id: string) => {
     try {
       await removeCard(id);
-    } catch {
+    } catch (err) {
       toast.error("删除卡片失败");
+      console.log(err);
     }
   };
 

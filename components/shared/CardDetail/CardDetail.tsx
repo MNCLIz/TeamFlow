@@ -16,7 +16,7 @@ import {
   SignalMedium,
 } from "lucide-react";
 import { CardType, Priority, TaskState } from "@/types/board";
-import { MdEditor } from "./MdEditor";
+import { MdEditor } from "../MdEditor";
 import { useBoardStore } from "@/store/boardStore";
 import { useProjectStore } from "@/store/projectStore";
 import { EditableTitle } from "@/components/shared/EditableTitle";

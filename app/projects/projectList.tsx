@@ -49,11 +49,17 @@ export function ProjectList() {
                 </div>
               </div>
 
-              <div className="flex items-center">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400 shrink-0">
+                  {new Date(project.updatedAt).toLocaleDateString("zh-CN", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
                 <Avatar size="sm">
                   <AvatarImage src={project.owner.image!} />
                 </Avatar>
-                <span className="text-xs text-gray-400 mx-2 shrink-0">
+                <span className="text-xs text-gray-400 shrink-0">
                   {project.owner.name}
                 </span>
                 <DeleteAlertDialog

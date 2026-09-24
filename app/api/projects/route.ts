@@ -22,20 +22,21 @@ export async function GET() {
           },
         },
       },
-      orderBy: { joinedAt: "desc" },
     });
 
-    const projects = memberships.map((m) => ({
-      id: m.project.id,
-      name: m.project.name,
-      description: m.project.description,
-      role: m.role,
-      ownerId: m.project.ownerId,
-      owner: m.project.owner,
-      members: m.project.members,
-      createdAt: m.project.createdAt,
-      updatedAt: m.project.updatedAt,
-    }));
+    const projects = memberships
+      .map((m) => ({
+        id: m.project.id,
+        name: m.project.name,
+        description: m.project.description,
+        role: m.role,
+        ownerId: m.project.ownerId,
+        owner: m.project.owner,
+        members: m.project.members,
+        createdAt: m.project.createdAt,
+        updatedAt: m.project.updatedAt,
+      }))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
     return NextResponse.json(successResponse(projects));
   } catch (error) {

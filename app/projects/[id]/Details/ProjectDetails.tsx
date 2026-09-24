@@ -30,9 +30,9 @@ export function ProjectDetails({
               {owner.image && (
                 <AvatarImage src={owner.image} alt={owner.name ?? ""} />
               )}
-              <AvatarFallback>{(owner.name ?? "?")[0]}</AvatarFallback>
+              <AvatarFallback>{(owner?.name ?? "?")[0]}</AvatarFallback>
             </Avatar>
-            <span className="text-sm">{owner.name ?? owner.email}</span>
+            <span className="text-sm">{owner?.name ?? owner?.email}</span>
           </div>
         </PropertyRow>
 

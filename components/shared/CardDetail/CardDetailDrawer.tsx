@@ -1,4 +1,4 @@
-import { CardDetail } from "@/components/shared/CardDetail";
+import { CardDetail } from "@/components/shared/CardDetail/CardDetail";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import { CardType } from "@/types/board";
 

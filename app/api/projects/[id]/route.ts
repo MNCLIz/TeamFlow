@@ -76,12 +76,26 @@ export async function PATCH(
     if (name !== undefined) data.name = name.trim();
     if (description !== undefined) data.description = description?.trim() || null;
 
-    const project = await prisma.project.update({
+    const updated = await prisma.project.update({
       where: { id },
       data,
+      include: {
+        owner: { select: { id: true, name: true, image: true } },
+        members: {
+          include: { user: { select: { id: true, name: true, image: true } } },
+          orderBy: { joinedAt: "asc" },
+        },
+        _count: { select: { activities: true } },
+      },
     });
 
-    return NextResponse.json(successResponse(project));
+    const member = await checkProjectAccess(id, user.id);
+
+    return NextResponse.json(successResponse({
+      ...updated,
+      role: member?.role,
+      activityCount: updated._count.activities,
+    }));
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       const err = errorResponse("未登录", 401);

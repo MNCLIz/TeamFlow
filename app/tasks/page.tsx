@@ -1,13 +1,16 @@
-import { Header } from "../../components/shared/Header";
+import { Header } from "@/components/shared/Header";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { TasksClient } from "./TasksClient";
 
-export default function Tasks() {
+export default function TasksPage() {
   return (
     <AuthProvider>
       <Header title="Tasks" />
-      <div className="flex flex-col items-center justify-center p-8">
-        <h1 className="text-2xl font-bold">Tasks</h1>
-      </div>
+      <main className="flex-1 p-8">
+        <div className="max-w-4xl mx-auto">
+          <TasksClient />
+        </div>
+      </main>
     </AuthProvider>
   );
 }

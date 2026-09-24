@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { redirect } from "next/navigation";
 import { toast } from "sonner";
-import { ProjectType } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { TasksBoard } from "./Tasks/TasksBoard";
 import { ProjectDetails } from "./Details/ProjectDetails";
@@ -12,18 +11,17 @@ import { useBoardStore } from "@/store/boardStore";
 import { EditableTitle } from "@/components/shared/EditableTitle";
 
 interface ProjectDetailsClientProps {
-  project: ProjectType | null;
+  id: string;
+  // project: ProjectType | null;
 }
 
 type TabView = "detail" | "tasks";
 
-export default function ProjectClient({ project }: ProjectDetailsClientProps) {
+export default function ProjectClient({ id }: ProjectDetailsClientProps) {
   const [activeTab, setActiveTab] = useState<TabView>("detail");
-  const [title, setTitle] = useState(project?.name ?? "");
 
-  const updateName = useProjectStore((state) => state.updateProject);
-
-  const fetchColumns = useBoardStore((state) => state.fetchColumns);
+  const projects = useProjectStore((state) => state.projects);
+  const project = projects.find((p) => p.id === id);
 
   useEffect(() => {
     if (!project) {
@@ -32,10 +30,19 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
     }
   }, [project]);
 
+  const [title, setTitle] = useState(project?.name ?? "");
+
+  const updateName = useProjectStore((state) => state.updateProject);
+
+  const fetchColumns = useBoardStore((state) => state.fetchColumns);
+
+  useEffect(() => {
+    fetchColumns(id);
+  }, [id, fetchColumns]);
+
   if (!project) return null;
 
-  const { id, createdAt, updatedAt, role, owner, members } = project;
-  fetchColumns(id);
+  const { createdAt, updatedAt, role, owner, members } = project;
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -59,7 +66,7 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
           />
         )}
       </div>
-      {activeTab === "tasks" && <TasksBoard />}
+      {activeTab === "tasks" && <TasksBoard projectId={id} />}
     </div>
   );
 }

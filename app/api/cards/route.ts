@@ -8,6 +8,32 @@ import { TaskState } from "@/types/board";
 const VALID_STATES = Object.values(TaskState) as string[];
 const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH"];
 
+export async function GET() {
+  try {
+    const user = await requireAuth();
+
+    const cards = await prisma.card.findMany({
+      where: {
+        OR: [
+          { createdById: user.id },
+          { assigneeId: user.id },
+          { project: { members: { some: { userId: user.id } } } },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return NextResponse.json(successResponse(cards));
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      const err = errorResponse("未登录", 401);
+      return NextResponse.json(err.response, { status: err.status });
+    }
+    const err = errorResponse("获取任务列表失败", 500);
+    return NextResponse.json(err.response, { status: err.status });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();

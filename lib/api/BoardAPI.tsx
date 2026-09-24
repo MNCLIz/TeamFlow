@@ -1,7 +1,7 @@
 import { request } from "@/lib/request";
 import { CardType, ColumnType, TaskState } from "@/types/board";
 
-// 创建任务卡片
+// 创建任务卡片（项目内）
 interface PostCreateCardAPIParams {
   projectId: string;
   title: string;
@@ -13,6 +13,23 @@ interface PostCreateCardAPIParams {
 export const postCreateCardAPI = async (params: PostCreateCardAPIParams) => {
   return await request<PostCreateCardAPIParams, CardType>({
     url: `/projects/${params.projectId}/cards`,
+    method: "POST",
+    data: params,
+  });
+};
+
+// 创建独立任务卡片（不绑定项目）
+interface PostCreateStandaloneCardParams {
+  title: string;
+  description?: string;
+  priority?: string;
+  state?: TaskState;
+}
+export const postCreateStandaloneCardAPI = async (
+  params: PostCreateStandaloneCardParams,
+) => {
+  return await request<PostCreateStandaloneCardParams, CardType>({
+    url: `/cards`,
     method: "POST",
     data: params,
   });
@@ -60,6 +77,13 @@ export const postMoveCardAPI = async (params: PostMoveCardAPIParams) => {
     url: `/cards/${params.id}/move`,
     method: "POST",
     data: params,
+  });
+};
+
+// 获取所有任务列表（按 updatedAt 降序）
+export const getCardsAPI = async () => {
+  return await request<never, CardType[]>({
+    url: `/cards`,
   });
 };
 

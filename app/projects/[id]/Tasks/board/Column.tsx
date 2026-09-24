@@ -1,5 +1,6 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -24,6 +25,9 @@ const ColumnsColor: Record<TaskState, [string, string]> = {
 export function Column({ column, projectId }: ColumnProps) {
   const createCard = useBoardStore((state) => state.createCard);
 
+  // 注册列为拖放放置目标，使跨栏拖放可被碰撞检测识别
+  const { setNodeRef } = useDroppable({ id: column.state });
+
   const handleCreateCard = async () => {
     await createCard({
       projectId,
@@ -34,7 +38,8 @@ export function Column({ column, projectId }: ColumnProps) {
 
   return (
     <div
-      className={`w-72 flex-shrink-0  rounded-lg p-3 flex flex-col ${ColumnsColor[column.state][0]}`}
+      ref={setNodeRef}
+      className={`w-72 flex-shrink-0 rounded-lg p-3 flex flex-col ${ColumnsColor[column.state][0]}`}
     >
       <h3 className="font-medium mb-3 px-1 flex-shrink-0">
         <span
