@@ -1,6 +1,17 @@
 import { signIn } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const isDev = process.env.NODE_ENV === "development";
+  // 开发环境查出全部用户供测试登录下拉选择；生产构建时 isDev 恒为 false，不触发查询
+  const users = isDev
+    ? await prisma.user.findMany({
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
+
   return (
     <main className="flex-1 flex items-center justify-center p-8">
       <div className="max-w-sm w-full text-center">
@@ -21,6 +32,51 @@ export default function LoginPage() {
             Sign in with GitHub
           </button>
         </form>
+
+        {/* 测试登录入口：仅开发环境渲染，从数据库已有用户中直接选择登录 */}
+        {isDev && (
+          <form
+            className="mt-6 pt-6 border-t border-gray-200 text-left space-y-3"
+            action={async (formData: FormData) => {
+              "use server";
+              try {
+                await signIn("credentials", {
+                  userId: formData.get("userId"),
+                  redirectTo: "/",
+                });
+              } catch (error) {
+                // signIn 成功时也通过抛 NEXT_REDIRECT 实现跳转，必须原样放行；
+                // 只有认证失败（CredentialsSignin / AccessDenied）才回登录页提示错误
+                if (
+                  error instanceof Error &&
+                  (error.name === "CredentialsSignin" || error.name === "AccessDenied")
+                ) {
+                  redirect("/login?error=invalid");
+                }
+                throw error;
+              }
+            }}
+          >
+            <p className="text-sm font-medium text-gray-500 text-center">测试登录（仅开发环境）</p>
+            <select
+              name="userId"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-400"
+            >
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name ?? "未命名"}（{user.email}）
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+            >
+              以选中用户登录
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );
