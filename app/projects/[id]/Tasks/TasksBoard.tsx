@@ -1,14 +1,11 @@
 "use client";
 
 import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Column } from "@/app/projects/[id]/Tasks/board/Column";
 import { useBoardStore } from "@/store/boardStore";
-import { useUserDataStore } from "@/store/userDataStore";
-import { useRealtime } from "@/hooks/useRealtime";
 import type { TaskState } from "@/types/board";
 import { Priority } from "@/types/board";
-import type { CardType } from "@/types/board";
 
 const priorityDotColor: Record<Priority, string> = {
   [Priority.High]: "bg-red-500",
@@ -17,42 +14,15 @@ const priorityDotColor: Record<Priority, string> = {
 };
 
 export function TasksBoard({ projectId }: { projectId: string }) {
-  console.log("[TasksBoard] Rendered with projectId:", projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const columns = useBoardStore((state) => state.columns);
-  const reorderCard = useBoardStore((state) => state.reorderCard);
-  const moveCard = useBoardStore((state) => state.moveCard);
-  const applyRemoteEvent = useBoardStore((state) => state.applyRemoteEvent);
-  const currentUserId = useUserDataStore((state) => state.id);
 
-  // SSE 事件处理映射，用 useMemo 保持引用稳定避免重连
-  const realtimeEvents = useMemo(
-    () => ({
-      "card:created": (data: unknown) => {
-        const card = data as CardType;
-        console.log("[TasksBoard] card:created SSE received, createdById:", card.createdById, "currentUserId:", currentUserId);
-        // 跳过自己创建的卡片（本地 createCard 已 await API 响应后插入）
-        if (card.createdById === currentUserId) {
-          console.log("[TasksBoard] card:created skipped (self-created)");
-          return;
-        }
-        console.log("[TasksBoard] card:created applying remote event");
-        applyRemoteEvent("card:created", data);
-      },
-      "card:updated": (data: unknown) => {
-        applyRemoteEvent("card:updated", data);
-      },
-      "card:moved": (data: unknown) => {
-        applyRemoteEvent("card:moved", data);
-      },
-      "card:deleted": (data: unknown) => {
-        applyRemoteEvent("card:deleted", data);
-      },
-    }),
-    [currentUserId, applyRemoteEvent],
-  );
+  const { columns, fetchColumns, reorderCard, moveCard } = useBoardStore();
 
-  useRealtime({ projectId, events: realtimeEvents });
+  if (columns.length === 0 || columns[0].projectId !== projectId) {
+    fetchColumns(projectId);
+  }
+
+  // SSE 订阅统一由 ProjectClient 处理（卡片与评论事件共用一条连接）
 
   // 根据碰撞检测的 over.id 判断目标列或目标卡片所属列
   const findColumnByOverId = (overId: string | number): TaskState | null => {

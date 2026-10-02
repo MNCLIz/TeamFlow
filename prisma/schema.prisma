@@ -8,18 +8,20 @@ datasource db {
 }
 
 model User {
-  id            String          @id @default(cuid())
-  name          String?
-  email         String          @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  projects      ProjectMember[]
-  ownedProjects Project[]       @relation("ProjectOwner")
-  createdCards  Card[]
-  assignedCards Card[]          @relation("CardAssignee")
-  activities    Activity[]
+  id               String          @id @default(cuid())
+  name             String?
+  email            String          @unique
+  emailVerified    DateTime?
+  image            String?
+  accounts         Account[]
+  sessions         Session[]
+  projects         ProjectMember[]
+  ownedProjects    Project[]       @relation("ProjectOwner")
+  createdCards     Card[]
+  assignedCards    Card[]          @relation("CardAssignee")
+  activities       Activity[]
+  comments         Comment[]       @relation("CommentAuthor")
+  resolvedComments Comment[]       @relation("CommentResolver")
 
   @@map("users")
 }
@@ -79,6 +81,7 @@ model Project {
   members     ProjectMember[]
   cards       Card[]
   activities  Activity[]
+  comments    Comment[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -99,22 +102,23 @@ model ProjectMember {
 }
 
 model Card {
-  id          String       @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
-  description String?      @db.Text
-  priority    String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  description String?    @db.Text
+  priority    String     @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
   dueDate     DateTime?
   order       Float
-  state       TaskState    @default(TODO)
+  state       TaskState  @default(TODO)
   projectId   String?
-  project     Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdById String
-  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User       @relation(fields: [createdById], references: [id], onDelete: Cascade)
   assigneeId  String?
-  assignee    User?        @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee    User?      @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   activities  Activity[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  comments    Comment[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([state, order])
   @@index([assigneeId])
@@ -127,7 +131,7 @@ model Activity {
   projectId String
   userId    String
   cardId    String?
-  action    String   // CREATE_CARD | MOVE_CARD | UPDATE_CARD | DELETE_CARD | ADD_MEMBER | REMOVE_MEMBER
+  action    String // CREATE_CARD | MOVE_CARD | UPDATE_CARD | DELETE_CARD | ADD_MEMBER | REMOVE_MEMBER | ADD_COMMENT | DELETE_COMMENT | RESOLVE_COMMENT
   details   String?  @db.Text
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -136,4 +140,29 @@ model Activity {
 
   @@index([projectId, createdAt])
   @@map("activities")
+}
+
+model Comment {
+  id           String    @id @default(cuid())
+  content      String    @db.Text
+  // 评论作用域：cardId 为空表示项目级讨论，否则为卡片评论
+  projectId    String
+  cardId       String?
+  authorId     String
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+  editedAt     DateTime?
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card         Card?     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author       User      @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy   User?     @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([cardId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([authorId])
+  @@index([resolvedById])
+  @@map("comments")
 }

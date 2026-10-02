@@ -79,17 +79,14 @@ export const useBoardStore = create<BoardState>()(immer((set) => ({
     }
   },
   createCard: async (params) => {
-    console.log("[Store] createCard called with params:", params);
     try {
       const card = await postCreateCardAPI(params);
-      console.log("[Store] createCard API response:", card);
       set((state) => {
         const targetColumn = state.columns.find((col) => col.state === params.state);
-        console.log("[Store] createCard targetColumn found:", !!targetColumn, "params.state:", params.state);
-        if (targetColumn) {
+        // SSE 广播可能先于本次响应到达并已插入同一张卡片，此处按 id 去重
+        if (targetColumn && !targetColumn.cards.some((c) => c.id === card.id)) {
           targetColumn.cards.push(card);
           targetColumn.cards.sort((a, b) => a.order - b.order);
-          console.log("[Store] createCard inserted, column cards count:", targetColumn.cards.length);
         }
       });
       return card;
@@ -208,27 +205,21 @@ export const useBoardStore = create<BoardState>()(immer((set) => ({
   },
   // 处理 SSE 远程事件，将其他用户的操作同步到本地 store
   applyRemoteEvent: (eventType: string, data: unknown) => {
-    console.log("[Store] applyRemoteEvent called:", eventType, data);
     set((state) => {
-      console.log("[Store] inside set(), columns count:", state.columns.length);
       switch (eventType) {
         case "card:created": {
           const card = data as CardType;
-          console.log("[Store] card:created event received:", card.id, card.title, "state:", card.state);
           // 避免重复插入（本地 createCard 已 await API 响应后插入）
           const exists = state.columns.some((col) =>
             col.cards.some((c) => c.id === card.id),
           );
-          console.log("[Store] card:created dedup check - exists:", exists);
           if (!exists) {
             const targetColumn = state.columns.find(
               (col) => col.state === card.state,
             );
-            console.log("[Store] card:created target column found:", !!targetColumn, "columns:", state.columns.map(c => c.state));
             if (targetColumn) {
               targetColumn.cards.push(card);
               targetColumn.cards.sort((a, b) => a.order - b.order);
-              console.log("[Store] card:created inserted successfully");
             }
           }
           break;

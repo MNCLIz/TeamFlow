@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import { CardType, Priority, TaskState } from "@/types/board";
 import { MdEditor } from "../MdEditor";
+import { CardComments } from "@/components/shared/Comments/CardComments";
 import { useBoardStore } from "@/store/boardStore";
 import { useProjectStore } from "@/store/projectStore";
+import { useUserDataStore } from "@/store/userDataStore";
 import { EditableTitle } from "@/components/shared/EditableTitle";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -93,7 +95,15 @@ export function CardDetail({ card }: { card: CardType }) {
   );
 
   const projects = useProjectStore((state) => state.projects);
-  const projectName = projects.find((p) => p.id === card.projectId)?.name;
+  const project = projects.find((p) => p.id === card.projectId);
+
+  const { name, role } = project ?? {};
+
+  const readOnly = role === "MEMBER";
+
+  const currentUserId = useUserDataStore((state) => state.id);
+  // 与后端删除权限一致：作者本人、项目 ADMIN、项目 owner
+  const canModerate = role === "ADMIN" || project?.owner?.id === currentUserId;
 
   const status =
     statusConfig.find((s) => s.name === card.state) ?? statusConfig[0];
@@ -111,7 +121,7 @@ export function CardDetail({ card }: { card: CardType }) {
         id={card.id}
         value={title}
         onChange={setTitle}
-        readOnly={false}
+        readOnly={readOnly}
         updateName={updateDescription}
       />
 
@@ -133,6 +143,7 @@ export function CardDetail({ card }: { card: CardType }) {
                   key={s.label}
                   className="cursor-pointer"
                   onClick={() => {
+                    if (readOnly) return;
                     updateCard({
                       id: card.id,
                       state: s.name,
@@ -164,6 +175,7 @@ export function CardDetail({ card }: { card: CardType }) {
                   key={value}
                   className="cursor-pointer"
                   onClick={() => {
+                    if (readOnly) return;
                     updateCard({ id: card.id, priority: value as Priority });
                   }}
                 >
@@ -183,13 +195,25 @@ export function CardDetail({ card }: { card: CardType }) {
         </button>
 
         {/* 项目 */}
-        {card.projectId && projectName && (
+        {card.projectId && name && (
           <Link href={`/projects/${card.projectId}`} className={triggerClass}>
             <Folder className="size-3.5" />
-            {projectName}
+            {name}
           </Link>
         )}
       </div>
+
+      <Separator className="my-4" />
+
+      {/* 卡片评论：放在描述上方（独立卡片无项目，后端不支持评论） */}
+      {card.projectId && (
+        <CardComments
+          cardId={card.id}
+          projectId={card.projectId}
+          currentUserId={currentUserId}
+          canModerate={canModerate}
+        />
+      )}
 
       <Separator className="my-4" />
 
@@ -197,6 +221,7 @@ export function CardDetail({ card }: { card: CardType }) {
       <MdEditor
         id={card.id}
         defaultValue={card.description ?? ""}
+        readOnly={readOnly}
         updateDescription={updateDescription}
       />
     </div>

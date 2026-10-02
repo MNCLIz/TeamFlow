@@ -9,6 +9,9 @@ export interface RealtimeEventMap {
   "card:deleted"?: (data: unknown) => void;
   "member:added"?: (data: unknown) => void;
   "member:removed"?: (data: unknown) => void;
+  "comment:created"?: (data: unknown) => void;
+  "comment:updated"?: (data: unknown) => void;
+  "comment:deleted"?: (data: unknown) => void;
   connected?: (data: unknown) => void;
 }
 
@@ -38,13 +41,11 @@ export function useRealtime({ projectId, events }: UseRealtimeOptions) {
       }
 
       const url = `/api/projects/${projectId}/events`;
-      console.log("[SSE] Connecting to:", url);
       es = new EventSource(url);
       eventSourceRef.current = es;
 
       // 连接成功时重置重试计数
       es.onopen = () => {
-        console.log("[SSE] Connection opened");
         retryCountRef.current = 0;
       };
 
@@ -58,7 +59,6 @@ export function useRealtime({ projectId, events }: UseRealtimeOptions) {
           try {
             const data = JSON.parse(e.data);
             eventsRef.current[eventName]?.(data);
-            console.log(`[SSE] Received event: ${eventName}`, data);
           } catch {
             console.warn("[SSE] Failed to parse event data:", e.data);
           }
@@ -75,7 +75,6 @@ export function useRealtime({ projectId, events }: UseRealtimeOptions) {
             1000 * Math.pow(2, retryCountRef.current),
             30000,
           );
-          console.log(`[SSE] Retrying in ${delay}ms (attempt ${retryCountRef.current}/${maxRetries})`);
           setTimeout(connect, delay);
         } else {
           console.error("[SSE] Max retries reached, giving up");
