@@ -16,7 +16,8 @@
     { "name": "Board", "description": "看板列（按任务状态分组）" },
     { "name": "Cards", "description": "任务卡片" },
     { "name": "Members", "description": "项目成员" },
-    { "name": "Realtime", "description": "SSE 实时事件流" }
+    { "name": "Realtime", "description": "SSE 实时事件流" },
+    { "name": "Images", "description": "图片上传与私有 OSS 代理读取" }
   ],
   "security": [
     { "sessionCookie": [] }
@@ -412,6 +413,75 @@
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
+    },
+    "/api/upload/image": {
+      "post": {
+        "tags": ["Images"],
+        "summary": "上传图片",
+        "description": "接收 multipart/form-data 的图片文件，校验类型（png/jpeg/gif/webp）与大小（≤5MB）后上传至阿里云私有 OSS，对象 key 形如 uploads/yyyy/mm/<uuid>.<ext>。因 bucket 私有，返回的 url 为本站代理地址 /api/image?key=...，Markdown 中应存此 url。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "图片文件，仅支持 png/jpeg/gif/webp，大小 ≤ 5MB"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseImageUpload" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/image": {
+      "get": {
+        "tags": ["Images"],
+        "summary": "读取图片（私有 bucket 代理）",
+        "description": "用服务端凭据从私有 OSS 读取对象并以二进制流返回，供 Markdown 中的图片 url 直接引用。key 必须以 uploads/ 开头且不得包含 ..（防越权与路径穿越）。响应带长期缓存头。",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "description": "OSS 对象 key，必须以 uploads/ 开头，不得含 ..",
+            "schema": { "type": "string", "example": "uploads/2026/09/3f1a...c9.png" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "图片二进制流。Content-Type 为对象实际类型（如 image/png），Cache-Control: private, max-age=31536000, immutable",
+            "content": {
+              "image/png": { "schema": { "type": "string", "format": "binary" } },
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } },
+              "image/gif": { "schema": { "type": "string", "format": "binary" } },
+              "image/webp": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
     }
   },
   "components": {
@@ -756,6 +826,27 @@
           "data": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/Member" }
+          }
+        }
+      },
+      "ApiResponseImageUpload": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "本站代理地址，Markdown 中存此 url",
+                "example": "/api/image?key=uploads%2F2026%2F09%2F3f1a...c9.png"
+              },
+              "key": {
+                "type": "string",
+                "description": "OSS 对象 key",
+                "example": "uploads/2026/09/3f1a...c9.png"
+              }
+            }
           }
         }
       }
