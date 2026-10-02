@@ -12,8 +12,6 @@ function isPublic(pathname: string) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  console.log("Proxy:", pathname);
-
   if (isPublic(pathname)) {
     return NextResponse.next();
   }
@@ -38,8 +36,15 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Next.js 只识别根目录的 middleware.ts；本文件命名为 proxy.ts 不会被自动加载，
-// 需在 middleware.ts 中 re-export，或直接将本文件改名为 middleware.ts 才能生效。
+// Next.js 16 起中间件文件约定为根目录的 proxy.ts（middleware.ts 仍被识别但已弃用，
+// 构建时会打印迁移警告），导出的函数名必须是 proxy 才会被加载。
+// matcher 覆盖所有需要登录的页面与 API；未列入的 API（如 /api/upload、/api/image）
+// 由各自的 requireAuth 返回 401 兜底。
 export const config = {
-  matcher: ["/projects/:path*", "/api/projects/:path*", "/api/cards/:path*"],
+  matcher: [
+    "/projects/:path*",
+    "/tasks/:path*",
+    "/api/projects/:path*",
+    "/api/cards/:path*",
+  ],
 };

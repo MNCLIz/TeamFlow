@@ -34,7 +34,7 @@ export function EditableTitle({
       onChange(trimmed);
     } catch (err) {
       toast.error("项目名称更新失败", { position: "top-center" });
-      console.log(err);
+      console.error(err);
       if (inputRef.current) inputRef.current.value = lastSavedRef.current;
     }
   };
