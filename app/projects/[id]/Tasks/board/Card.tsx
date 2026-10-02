@@ -18,10 +18,10 @@ import { CardDetailDrawer } from "../../../../../components/shared/CardDetail/Ca
 
 interface CardItemProps {
   card: CardType;
-  projectId: string;
+  readOnly?: boolean;
 }
 
-export function CardItem({ card }: CardItemProps) {
+export function CardItem({ card, readOnly = true }: CardItemProps) {
   const removeCard = useBoardStore((state) => state.removeCard);
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: card.id });
@@ -34,10 +34,11 @@ export function CardItem({ card }: CardItemProps) {
   // 删除卡片
   const handleDelete = async (id: string) => {
     try {
+      if (readOnly) throw new Error("权限不足");
       await removeCard(id);
     } catch (err) {
       toast.error("删除卡片失败");
-      console.log(err);
+      console.error(err);
     }
   };
 
@@ -65,14 +66,16 @@ export function CardItem({ card }: CardItemProps) {
           </h4>
         </div>
       </CardDetailDrawer>
-      <div className="mt-1 absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <DeleteAlertDialog id={card.id} confirmDelete={handleDelete}>
-          <Trash2
-            size={28}
-            className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-500 transition-colors"
-          />
-        </DeleteAlertDialog>
-      </div>
+      {!readOnly && (
+        <div className="mt-1 absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <DeleteAlertDialog id={card.id} confirmDelete={handleDelete}>
+            <Trash2
+              size={28}
+              className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-500 transition-colors"
+            />
+          </DeleteAlertDialog>
+        </div>
+      )}
     </div>
   );
 }

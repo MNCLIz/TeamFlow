@@ -1,5 +1,5 @@
 import { request } from "@/lib/request"
-import { ProjectType } from "@/types/project"
+import { MemberRole, MemberType, ProjectType } from "@/types/project"
 
 // 获取项目详情
 export const getProjectAPI = async ({ id, Cookie }: { id: string, Cookie: string }) => {
@@ -28,7 +28,6 @@ export const getProjectListAPI = async () => {
         url: '/projects'
     })
 }
-
 interface PatchProjectAPIParams {
     id: string
     name?: string
@@ -46,14 +45,37 @@ export const patchProjectAPI = async (params: PatchProjectAPIParams) => {
 }
 
 // 删除项目
-
 interface DeleteProjectAPIRequence {
     deleted: boolean
 }
-
 export const deleteProjectAPI = async (id: string) => {
     return await request<null, DeleteProjectAPIRequence>({
         url: `/projects/${id}`,
         method: 'DELETE'
+    })
+}
+
+// 退出项目（移除自己的成员身份）
+interface LeaveProjectAPIResponse {
+    left: boolean
+}
+export const leaveProjectAPI = async (id: string) => {
+    return await request<null, LeaveProjectAPIResponse>({
+        url: `/projects/${id}/leave`,
+        method: 'POST'
+    })
+}
+
+// 添加项目成员（按邮箱 + 角色）
+interface PostProjectMemberAPIParams {
+    projectId: string
+    email: string
+    role: MemberRole
+}
+export const postProjectMemberAPI = async (params: PostProjectMemberAPIParams) => {
+    return await request<Omit<PostProjectMemberAPIParams, "projectId">, MemberType>({
+        url: `/projects/${params.projectId}/members`,
+        method: 'POST',
+        data: { email: params.email, role: params.role }
     })
 }

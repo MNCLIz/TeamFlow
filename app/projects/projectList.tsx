@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import { useProjectStore, ProjectStoreType } from "@/store/projectStore";
+import { useUserDataStore } from "@/store/userDataStore";
 import { useShallow } from "zustand/react/shallow";
 import { useEffect, useCallback } from "react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { LogOut } from "lucide-react";
 import { DeleteAlertDialog } from "@/components/shared/DeleteAlertDialog";
 
 export function ProjectList() {
-  const { projects, fetchProjects, deleteProject } = useProjectStore(
-    useShallow((state: ProjectStoreType) => ({
-      projects: state.projects,
-      fetchProjects: state.fetchProjects,
-      deleteProject: state.deleteProject,
-    })),
-  );
+  const { projects, fetchProjects, deleteProject, leaveProject } =
+    useProjectStore(
+      useShallow((state: ProjectStoreType) => ({
+        projects: state.projects,
+        fetchProjects: state.fetchProjects,
+        deleteProject: state.deleteProject,
+        leaveProject: state.leaveProject,
+      })),
+    );
+  const currentUserId = useUserDataStore((state) => state.id);
 
   const handleDelete = useCallback(
     async (projectId: string) => {
@@ -23,6 +28,14 @@ export function ProjectList() {
       if (!deleted) toast.error("Failed to delete project");
     },
     [deleteProject],
+  );
+
+  const handleLeave = useCallback(
+    async (projectId: string) => {
+      const left = await leaveProject(projectId);
+      if (!left) toast.error("Failed to leave project");
+    },
+    [leaveProject],
   );
 
   useEffect(() => {
@@ -62,10 +75,25 @@ export function ProjectList() {
                 <span className="text-xs text-gray-400 shrink-0">
                   {project.owner.name}
                 </span>
-                <DeleteAlertDialog
-                  id={project.id}
-                  confirmDelete={handleDelete}
-                />
+                {/* owner 显示删除按钮，其他成员显示退出按钮 */}
+                {project.ownerId === currentUserId ? (
+                  <DeleteAlertDialog
+                    id={project.id}
+                    confirmDelete={handleDelete}
+                  />
+                ) : (
+                  <DeleteAlertDialog
+                    id={project.id}
+                    confirmDelete={handleLeave}
+                    title="确认退出项目?"
+                    description="退出后将无法访问该项目，需重新被邀请才能加入"
+                  >
+                    <LogOut
+                      size={32}
+                      className="px-2 border rounded-lg hover:bg-gray-200 hover:text-gray-600"
+                    />
+                  </DeleteAlertDialog>
+                )}
               </div>
             </Link>
           ))}

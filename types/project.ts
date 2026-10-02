@@ -14,7 +14,7 @@ export interface ProjectType {
   id: string;
   name: string;
   description: string;
-  ownId: string;
+  ownerId: string;
   createdAt: Date;
   updatedAt: Date;
   role: MemberRole;

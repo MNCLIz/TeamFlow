@@ -9,6 +9,7 @@ import type { ColumnType } from "@/types/board";
 import { TaskState } from "@/types/board";
 import { CardItem } from "./Card";
 import { useBoardStore } from "@/store/boardStore";
+import { useProjectStore } from "@/store/projectStore";
 
 interface ColumnProps {
   column: ColumnType;
@@ -36,6 +37,11 @@ export function Column({ column, projectId }: ColumnProps) {
     });
   };
 
+  const role = useProjectStore((state) => state.projects).find(
+    (p) => p.id === projectId,
+  )?.role;
+  const readOnly = role === "MEMBER";
+
   return (
     <div
       ref={setNodeRef}
@@ -53,18 +59,25 @@ export function Column({ column, projectId }: ColumnProps) {
         strategy={verticalListSortingStrategy}
       >
         <div className="flex-col gap-2  flex-1 overflow-y-auto">
+          {column.cards.length === 0 && (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-white/40 px-3 py-6 text-center text-sm text-gray-400 select-none">
+              暂无任务
+            </div>
+          )}
           {column.cards.map((card) => (
-            <CardItem key={card.id} card={card} projectId={projectId} />
+            <CardItem key={card.id} card={card} readOnly={readOnly} />
           ))}
         </div>
       </SortableContext>
 
-      <button
-        onClick={handleCreateCard}
-        className="mt-2 w-full text-left bg-white p-3 rounded shadow-sm border cursor-pointer hover:shadow-md transition-shadow flex-shrink-0"
-      >
-        <h4 className="font-medium text-sm">+ 新建任务</h4>
-      </button>
+      {!readOnly && (
+        <button
+          onClick={handleCreateCard}
+          className="mt-2 w-full text-left bg-white p-3 rounded shadow-sm border cursor-pointer hover:shadow-md transition-shadow flex-shrink-0"
+        >
+          <h4 className="font-medium text-sm">+ 新建任务</h4>
+        </button>
+      )}
     </div>
   );
 }

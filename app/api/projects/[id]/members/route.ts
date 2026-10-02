@@ -56,24 +56,25 @@ export async function POST(
     await requireProjectAdmin(projectId, user.id);
 
     const body = await request.json();
-    const { userId, role } = body as { userId?: string; role?: string };
+    const { email, role } = body as { email?: string; role?: string };
 
-    if (!userId) {
-      const err = errorResponse("缺少必要参数 userId");
+    if (!email) {
+      const err = errorResponse("缺少必要参数 email");
       return NextResponse.json(err.response, { status: err.status });
     }
 
     const validRoles = ["ADMIN", "MEMBER"];
     const memberRole = role && validRoles.includes(role) ? role : "MEMBER";
 
-    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    // 按邮箱查找目标用户，不存在则返回 404
+    const targetUser = await prisma.user.findUnique({ where: { email } });
     if (!targetUser) {
       const err = errorResponse("用户不存在", 404);
       return NextResponse.json(err.response, { status: err.status });
     }
 
     const existing = await prisma.projectMember.findUnique({
-      where: { userId_projectId: { userId, projectId } },
+      where: { userId_projectId: { userId: targetUser.id, projectId } },
     });
     if (existing) {
       const err = errorResponse("该用户已是项目成员");
@@ -82,7 +83,7 @@ export async function POST(
 
     const newMember = await prisma.$transaction(async (tx) => {
       const member = await tx.projectMember.create({
-        data: { userId, projectId, role: memberRole },
+        data: { userId: targetUser.id, projectId, role: memberRole },
         include: {
           user: { select: { id: true, name: true, email: true, image: true } },
         },
@@ -93,7 +94,7 @@ export async function POST(
           projectId,
           userId: user.id,
           action: "ADD_MEMBER",
-          details: JSON.stringify({ addedUserId: userId, role: memberRole }),
+          details: JSON.stringify({ addedUserId: targetUser.id, role: memberRole }),
         },
       });
 

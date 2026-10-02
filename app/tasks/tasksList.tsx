@@ -18,6 +18,7 @@ import {
 import { useBoardStore } from "@/store/boardStore";
 import { DeleteAlertDialog } from "@/components/shared/DeleteAlertDialog";
 import { CardDetailDrawer } from "@/components/shared/CardDetail/CardDetailDrawer";
+import { useProjectStore } from "@/store/projectStore";
 
 const priorityColors: Record<Priority, string> = {
   [Priority.High]: "text-red-600 bg-red-50",
@@ -53,6 +54,8 @@ interface TasksListProps {
 export function TasksList({ cards }: TasksListProps) {
   const removeCard = useBoardStore((state) => state.removeCard);
 
+  const projects = useProjectStore((state) => state.projects);
+
   const handleDelete = useCallback(
     async (id: string) => {
       try {
@@ -77,6 +80,9 @@ export function TasksList({ cards }: TasksListProps) {
       {cards.map((card) => {
         const StateIcon = stateIcons[card.state] ?? CircleDashed;
         const stateColor = stateColors[card.state] ?? "text-muted-foreground";
+        const project = projects.find((p) => p.id === card.projectId);
+        const role = project?.role ?? "ADMIN";
+        const readOnly = role === "MEMBER";
 
         return (
           <div
@@ -112,14 +118,16 @@ export function TasksList({ cards }: TasksListProps) {
               </div>
             </CardDetailDrawer>
 
-            <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ml-4 shrink-0">
-              <DeleteAlertDialog id={card.id} confirmDelete={handleDelete}>
-                <Trash2
-                  size={28}
-                  className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-500 transition-colors"
-                />
-              </DeleteAlertDialog>
-            </div>
+            {!readOnly && (
+              <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ml-4 shrink-0">
+                <DeleteAlertDialog id={card.id} confirmDelete={handleDelete}>
+                  <Trash2
+                    size={28}
+                    className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-500 transition-colors"
+                  />
+                </DeleteAlertDialog>
+              </div>
+            )}
           </div>
         );
       })}

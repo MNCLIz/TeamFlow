@@ -1,11 +1,13 @@
 import { create } from "zustand"
-import { ProjectType } from "@/types/project"
+import { MemberRole, ProjectType } from "@/types/project"
 import { immer } from "zustand/middleware/immer"
 import {
   getProjectListAPI,
   postProjectsAPI,
   patchProjectAPI,
   deleteProjectAPI,
+  leaveProjectAPI,
+  postProjectMemberAPI,
 } from "@/lib/api/ProjectsAPI"
 
 export interface ProjectStoreType {
@@ -18,6 +20,8 @@ export interface ProjectStoreType {
   createProject: (data: { name: string; description?: string }) => Promise<ProjectType>
   updateProject: (params: { id: string; name?: string; description?: string }) => Promise<void>
   deleteProject: (id: string) => Promise<boolean>
+  leaveProject: (id: string) => Promise<boolean>
+  addMember: (params: { projectId: string; email: string; role: MemberRole }) => Promise<void>
 }
 
 export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
@@ -58,7 +62,6 @@ export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
         state.projects[idx] = project
       }
     })
-    // return project
   },
   deleteProject: async (id) => {
     const result = await deleteProjectAPI(id)
@@ -66,5 +69,23 @@ export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
       get().removeProject(id)
     }
     return result.deleted
+  },
+  // 退出项目成功后从本地列表移除该项目
+  leaveProject: async (id) => {
+    const result = await leaveProjectAPI(id)
+    if (result.left) {
+      get().removeProject(id)
+    }
+    return result.left
+  },
+  // 添加成员成功后写入对应项目的 members 列表
+  addMember: async ({ projectId, email, role }) => {
+    const member = await postProjectMemberAPI({ projectId, email, role })
+    set((state) => {
+      const project = state.projects.find((p) => p.id === projectId)
+      if (project) {
+        project.members.push(member)
+      }
+    })
   },
 })))

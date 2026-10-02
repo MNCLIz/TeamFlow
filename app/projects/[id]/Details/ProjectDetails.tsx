@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { MemberRole, MemberType } from "@/types/project";
 import { UserType } from "@/types/user";
 import { DescriptionDetail } from "./DescriptionDetail";
+import { AddMemberDialog } from "./AddMemberDialog";
 
 export function ProjectDetails({
   id,
@@ -65,30 +66,29 @@ export function ProjectDetails({
 
         {/* 团队成员 */}
         <PropertyRow label="Members">
-          {members.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {members.map((member) => (
-                <div key={member.id} className="flex items-center gap-1.5">
-                  <Avatar size="sm">
-                    {member.user.image && (
-                      <AvatarImage
-                        src={member.user.image}
-                        alt={member.user.name ?? ""}
-                      />
-                    )}
-                    <AvatarFallback>
-                      {(member.user.name ?? "?")[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm">
-                    {member.user.name ?? member.user.email}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">No members</span>
-          )}
+          {/* group 容器：加号按钮仅在悬停成员区域时显示 */}
+          <div className="group flex flex-wrap items-center gap-2">
+            {members.map((member) => (
+              <div key={member.id} className="flex items-center gap-1.5">
+                <Avatar size="sm">
+                  {member.user.image && (
+                    <AvatarImage
+                      src={member.user.image}
+                      alt={member.user.name ?? ""}
+                    />
+                  )}
+                  <AvatarFallback>
+                    {(member.user.name ?? "?")[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm">
+                  {member.user.name ?? member.user.email}
+                </span>
+              </div>
+            ))}
+            {/* 成员列表末尾的添加成员入口 */}
+            {role && role === "ADMIN" && <AddMemberDialog projectId={id} />}
+          </div>
         </PropertyRow>
 
         {/* 项目详情 */}

@@ -118,7 +118,16 @@ export async function DELETE(
     const user = await requireAuth();
     const { id } = await params;
 
-    await requireProjectAdmin(id, user.id);
+    // 仅项目所有者可删除项目
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project) {
+      const err = errorResponse("项目不存在", 404);
+      return NextResponse.json(err.response, { status: err.status });
+    }
+    if (project.ownerId !== user.id) {
+      const err = errorResponse("仅项目所有者可删除项目", 403);
+      return NextResponse.json(err.response, { status: err.status });
+    }
 
     await prisma.project.delete({ where: { id } });
 
@@ -129,7 +138,7 @@ export async function DELETE(
       return NextResponse.json(err.response, { status: err.status });
     }
     if (error instanceof Error && error.message === "Forbidden") {
-      const err = errorResponse("仅管理员可删除项目", 403);
+      const err = errorResponse("仅项目所有者可删除项目", 403);
       return NextResponse.json(err.response, { status: err.status });
     }
     const err = errorResponse("删除项目失败", 500);

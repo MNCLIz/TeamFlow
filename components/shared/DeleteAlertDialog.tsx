@@ -17,10 +17,14 @@ export function DeleteAlertDialog({
   id,
   confirmDelete,
   children,
+  title = "确认删除?",
+  description = "删除后无法恢复",
 }: {
   id: string;
   confirmDelete: (id: string) => void;
   children?: React.ReactNode;
+  title?: string;
+  description?: string;
 }) {
   return (
     <AlertDialog>
@@ -36,8 +40,8 @@ export function DeleteAlertDialog({
       </div>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>确认删除?</AlertDialogTitle>
-          <AlertDialogDescription>删除后无法恢复</AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <div onClick={(e) => e.preventDefault()}>
