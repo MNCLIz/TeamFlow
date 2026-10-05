@@ -16,6 +16,9 @@
 /test-results
 /playwright-report
 
+# 本地 UI 截图产物（任务详情抽屉视觉验收）
+/.tmp-shots/
+
 # next.js
 /.next/
 /out/
@@ -67,3 +70,9 @@ skills-lock.json
 
 # Utility scripts (personal tooling, not part of source)
 /scripts/
+
+# Local crash-dump investigation (Windows dumps + analysis output, ~189MB)
+/.crash-investigation/
+
+# Generated disk usage report (local tooling output)
+/storage-report.html
