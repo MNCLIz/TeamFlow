@@ -17,7 +17,8 @@
     { "name": "Cards", "description": "任务卡片" },
     { "name": "Members", "description": "项目成员" },
     { "name": "Realtime", "description": "SSE 实时事件流" },
-    { "name": "Images", "description": "图片上传与私有 OSS 代理读取" }
+    { "name": "Images", "description": "图片上传与私有 OSS 代理读取" },
+    { "name": "Comments", "description": "评论（卡片级评论 + 项目级讨论，支持引用与 @提及成员）" }
   ],
   "security": [
     { "sessionCookie": [] }
@@ -75,7 +76,7 @@
       "get": {
         "tags": ["Projects"],
         "summary": "获取项目详情",
-        "description": "返回项目基本信息、所有者、成员列表，以及当前用户在项目中的角色（role）和活动数量（activityCount）。",
+        "description": "返回项目基本信息、所有者、成员列表，以及当前用户在项目中的角色（role）、活动数量（activityCount）、项目级讨论的已读水位线（lastReadAt）与未读起点（firstUnreadCommentId）——后两者都只属于请求者本人，lastReadAt 为 null 表示从未读过。",
         "responses": {
           "200": {
             "description": "项目详情",
@@ -216,7 +217,7 @@
       "post": {
         "tags": ["Members"],
         "summary": "添加项目成员（仅 ADMIN）",
-        "description": "添加成员，role 非法或缺省时默认 MEMBER。用户不存在返回 404，已是成员返回 400。写入 ADD_MEMBER 活动并广播 member:added。",
+        "description": "按邮箱邀请成员，role 非法或缺省时默认 MEMBER。用户不存在返回 404，已是成员返回 400。写入 ADD_MEMBER 活动并广播 member:added。",
         "requestBody": {
           "required": true,
           "content": {
@@ -278,7 +279,7 @@
       "get": {
         "tags": ["Realtime"],
         "summary": "SSE 实时事件流",
-        "description": "Server-Sent Events 长连接。连接成功后收到 connected 事件（data 含 userId），每 30s 发送一次心跳注释。业务事件类型：card:created / card:updated / card:deleted（data 为卡片对象）、card:moved（data 为 { cardId, fromState, toState, order }）、member:added（data 为成员对象）、member:removed（data 为 { userId }）。",
+        "description": "Server-Sent Events 长连接。连接成功后收到 connected 事件（data 含 userId），每 30s 发送一次心跳注释。业务事件类型：card:created / card:updated / card:deleted（data 为卡片对象）、card:moved（data 为 { cardId, fromState, toState, order }）、member:added（data 为成员对象）、member:removed（data 为 { userId }）、comment:created / comment:updated（data 为评论对象，含 mentions）、comment:deleted（data 为 { commentId, cardId, projectId }）。",
         "responses": {
           "200": {
             "description": "SSE 事件流",
@@ -297,6 +298,38 @@
             "description": "无权访问该项目",
             "content": { "text/plain": { "schema": { "type": "string", "example": "Forbidden" } } }
           }
+        }
+      }
+    },
+    "/api/projects/{id}/comments/read": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ProjectId" }
+      ],
+      "post": {
+        "tags": ["Comments"],
+        "summary": "标记项目级讨论已读（推进未读水位线）",
+        "description": "把当前成员在项目级讨论（cardId 为 null 的评论）里的已读水位线推进到指定时间：不传 lastReadAt 表示推进到最新一条评论的 createdAt（即全部已读）；水位线只允许前进，并且以最新一条评论的时间为上界（伪造未来时间无效）；项目内没有任何评论时水位线不动。幂等：值没有变化时不写库。未读判定在前端完成：未读 = createdAt 晚于水位线 且 未解决 且 不是自己发的。",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CommentReadRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "标记成功（返回推进后的水位线；无评论且从未读过时为 null）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCommentReadState" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
     },
@@ -414,6 +447,124 @@
         }
       }
     },
+    "/api/comments": {
+      "get": {
+        "tags": ["Comments"],
+        "summary": "获取评论列表（卡片级 / 项目级 / 独立任务）",
+        "description": "传 cardId 查该卡片的评论，传 projectId 查项目级讨论，二选一（都传时以 cardId 所属项目为准，不匹配返回 400）。按创建时间升序返回，每条评论都带 author、resolvedBy 与 mentions（被 @ 提及的成员，含 @名字 在正文中的 start/end 位置，可能为空数组；独立任务的评论恒为空数组）。权限：项目级讨论与项目内卡片评论要求是项目成员（否则 403）；不属于任何项目的独立任务只对任务创建者与负责人开放（其他人 403，卡片不存在 404）。",
+        "parameters": [
+          {
+            "name": "cardId",
+            "in": "query",
+            "required": false,
+            "description": "卡片 ID：查该卡片的评论（与 projectId 二选一）。卡片不属于任何项目时即为独立任务评论，无需也不能传 projectId",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": false,
+            "description": "项目 ID：查项目级讨论（cardId 为空时必填）",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "评论列表（升序）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseCommentList" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "post": {
+        "tags": ["Comments"],
+        "summary": "创建评论（可选引用 / @提及）",
+        "description": "cardId 与 projectId 二选一（都传时必须匹配）。传 parentId 表示引用某条评论：只允许一层，回复「回复」时自动指向根评论，并写入创建时的引用快照 quotedAuthorName / quotedExcerpt（正文截断 120 字）。mentions 为被 @ 提及的成员与位置，必须是本项目成员且 start/end 与正文里的 @名字 对得上；正文文案由前端拼装，服务端只存 id 与位置。权限：项目级讨论与项目内卡片评论要求是项目成员；不属于任何项目的独立任务只对任务创建者与负责人开放（其他人 403）。独立任务的评论不支持 @提及：传非空 mentions 返回 400。项目内评论会写入 ADD_COMMENT 活动并广播 comment:created；独立任务评论不写活动、不广播。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCommentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功，返回含 author / resolvedBy / mentions 的评论对象",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseComment" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/comments/{id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/CommentId" }
+      ],
+      "patch": {
+        "tags": ["Comments"],
+        "summary": "更新评论（编辑正文 / 解决状态 / 提及）",
+        "description": "至少提供一个字段。content 与 mentions 仅评论作者可改（403「只有作者可以编辑评论」），resolved 任何有权访问该作用域的用户可改且幂等（重复标记保持首次的解决人与时间）。mentions 为全量替换（传 [] 清空），位置需与正文里的 @名字 一致；被提及的用户不是项目成员返回 400；独立任务（不属于任何项目）的评论不支持 @提及，传非空 mentions 返回 400。正文实际变化才写 editedAt；没有任何实际变化时直接返回当前评论，不写活动也不广播。parentId 不可修改（400）。有变化时广播 comment:updated（独立任务评论不广播）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCommentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功（或无可变更时返回当前评论）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseComment" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "delete": {
+        "tags": ["Comments"],
+        "summary": "删除评论（作者 / 项目 ADMIN / 项目 owner / 任务创建者）",
+        "description": "删除权限：评论作者本人，或作用域内的管理者（项目内评论为项目 ADMIN / 项目 owner，独立任务评论为任务创建者），其余人返回 403。级联删除该评论的提及记录（comment_mentions）；被它引用的回复保留，parentId 置空、引用快照仍可展示。项目内评论写入 DELETE_COMMENT 活动并广播 comment:deleted；独立任务评论不写活动、不广播。",
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseDeleted" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/api/upload/image": {
       "post": {
         "tags": ["Images"],
@@ -506,6 +657,13 @@
         "in": "path",
         "required": true,
         "description": "卡片 ID（cuid）",
+        "schema": { "type": "string" }
+      },
+      "CommentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "评论 ID（cuid）",
         "schema": { "type": "string" }
       }
     },
@@ -654,6 +812,17 @@
             "properties": {
               "role": { "$ref": "#/components/schemas/MemberRole" },
               "activityCount": { "type": "integer", "description": "项目活动记录总数" },
+              "lastReadAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "当前请求者对项目级讨论的已读水位线（值为已读到的最后一条评论的 createdAt，null 表示从未读过）。只属于请求者本人，不随 members 下发"
+              },
+              "firstUnreadCommentId": {
+                "type": "string",
+                "nullable": true,
+                "description": "打开项目时的未读起点：项目级讨论里第一条「晚于本人水位线、未解决、不是自己发的」评论 id（null 表示没有未读）。前端据此在第一条未读之前画「以下为未读消息」分割线，本次会话内固定不变"
+              },
               "owner": { "$ref": "#/components/schemas/UserBrief" },
               "members": {
                 "type": "array",
@@ -671,6 +840,105 @@
           "role": { "$ref": "#/components/schemas/MemberRole" },
           "joinedAt": { "type": "string", "format": "date-time" },
           "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "CommentMention": {
+        "type": "object",
+        "description": "评论里被 @ 提及的成员（comment_mentions 关联表），含「@名字」在正文中的位置",
+        "properties": {
+          "userId": { "type": "string" },
+          "start": {
+            "type": "integer",
+            "description": "「@名字」在正文中的起始下标（JS UTF-16，左闭），content.slice(start, end) === \"@\" + user.name"
+          },
+          "end": { "type": "integer", "description": "「@名字」在正文中的结束下标（右开）" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "CommentMentionInput": {
+        "type": "object",
+        "description": "提交一条 @提及：被 @ 的成员 + 「@名字」在本次正文中的位置（相对 trim 后入库的 content 计算）",
+        "required": ["userId", "start", "end"],
+        "properties": {
+          "userId": { "type": "string", "description": "被 @ 的成员，必须是本项目成员，否则 400" },
+          "start": { "type": "integer", "minimum": 0, "description": "@ 符号所在下标（JS UTF-16，左闭）" },
+          "end": { "type": "integer", "description": "名字结束后的下标（右开），需满足 start < end <= content.length" }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "content": { "type": "string", "description": "纯文本正文，换行保留，最长 5000 字" },
+          "projectId": { "type": "string", "nullable": true, "description": "所属项目；null 表示独立任务（不属于任何项目）的评论，此时 cardId 必不为空" },
+          "cardId": { "type": "string", "nullable": true, "description": "null 表示项目级讨论" },
+          "authorId": { "type": "string" },
+          "author": { "$ref": "#/components/schemas/User" },
+          "resolved": { "type": "boolean" },
+          "resolvedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "resolvedById": { "type": "string", "nullable": true },
+          "resolvedBy": {
+            "allOf": [{ "$ref": "#/components/schemas/User" }],
+            "nullable": true,
+            "description": "解决人，未解决时为 null"
+          },
+          "editedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "parentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "引用的根评论 ID；为空表示普通评论，或所引用的评论已被删除"
+          },
+          "quotedAuthorName": { "type": "string", "nullable": true, "description": "引用快照：被引用评论的作者名" },
+          "quotedExcerpt": { "type": "string", "nullable": true, "description": "引用快照：被引用评论正文（截断 120 字）" },
+          "mentions": {
+            "type": "array",
+            "description": "被 @ 提及的成员，按正文位置（start）升序，可能为空数组",
+            "items": { "$ref": "#/components/schemas/CommentMention" }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateCommentRequest": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": { "type": "string", "description": "评论正文，trim 后不能为空，最长 5000 字", "example": "@李四 麻烦看下这个卡片" },
+          "cardId": { "type": "string", "nullable": true, "description": "卡片级评论；与 projectId 二选一（都传时必须匹配）。卡片不属于任何项目时即独立任务评论，此时不能传 projectId" },
+          "projectId": { "type": "string", "nullable": true, "description": "项目级讨论；与 cardId 二选一" },
+          "parentId": { "type": "string", "nullable": true, "description": "被引用的评论 ID；引用只允许一层，回复「回复」时服务端提升为根评论" },
+          "mentions": {
+            "type": "array",
+            "description": "被 @ 提及的成员及其在正文中的位置。必须是本项目成员，且 content.slice(start, end) 必须等于 \"@\" + 该成员名字（名字取 user.name，为空时取 email），否则 400；完全重复的条目自动去重，同一 start 指向不同内容返回 400「提及位置重复」。独立任务（不属于任何项目）没有成员可提及，传非空数组返回 400",
+            "items": { "$ref": "#/components/schemas/CommentMentionInput" },
+            "example": [{ "userId": "cmuge1pat00012stcicd1lglx", "start": 0, "end": 3 }]
+          }
+        }
+      },
+      "UpdateCommentRequest": {
+        "type": "object",
+        "description": "至少提供一个字段；content 与 mentions 仅作者可改，resolved 任何有权访问该作用域的用户可改",
+        "properties": {
+          "content": { "type": "string", "description": "编辑正文，trim 后不能为空，最长 5000 字" },
+          "resolved": { "type": "boolean", "description": "解决 / 取消解决（幂等，重复标记保持首次解决人与时间）" },
+          "mentions": {
+            "type": "array",
+            "description": "全量替换被 @ 提及的成员与位置，传 [] 清空。位置相对本次提交后的正文计算（同时改正文时按新正文校验）。集合完全一致时视为无变化：不写 editedAt、不广播。独立任务（不属于任何项目）的评论不支持 @提及，传非空数组返回 400",
+            "items": { "$ref": "#/components/schemas/CommentMentionInput" }
+          }
+        }
+      },
+      "CommentReadRequest": {
+        "type": "object",
+        "description": "标记项目级讨论已读；body 可以为空对象（等价于推进到最新一条评论）",
+        "properties": {
+          "lastReadAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "要推进到的水位线（ISO 8601，一般取已加载的最新一条评论的 createdAt）。缺省或 null 表示推进到最新一条评论；晚于最新评论时按最新评论截断；早于当前水位线时忽略（只前进不回退）",
+            "example": "2026-03-01T08:30:00.000Z"
+          }
         }
       },
       "CreateProjectRequest": {
@@ -744,9 +1012,9 @@
       },
       "AddMemberRequest": {
         "type": "object",
-        "required": ["userId"],
+        "required": ["email"],
         "properties": {
-          "userId": { "type": "string", "description": "要添加的用户 ID" },
+          "email": { "type": "string", "format": "email", "description": "要添加的成员邮箱，用户不存在返回 404" },
           "role": {
             "allOf": [{ "$ref": "#/components/schemas/MemberRole" }],
             "description": "成员角色，非法或缺省时为 MEMBER"
@@ -826,6 +1094,41 @@
           "data": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/Member" }
+          }
+        }
+      },
+      "ApiResponseComment": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/Comment" }
+        }
+      },
+      "ApiResponseCommentList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Comment" },
+            "description": "按创建时间升序"
+          }
+        }
+      },
+      "ApiResponseCommentReadState": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "lastReadAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "推进后的水位线；项目内没有评论时为 null"
+              }
+            }
           }
         }
       },

@@ -12,7 +12,8 @@ export function CardDetailDrawer({
   return (
     <Drawer swipeDirection="right">
       <DrawerTrigger>{children}</DrawerTrigger>
-      <DrawerContent className="w-[600px] data-[vaul-drawer-direction=bottom]:max-h-[50vh] data-[vaul-drawer-direction=top]:max-h-[50vh]">
+      {/* 任务详情：定宽侧栏；内容由 CardDetail 自己分成「固定头部 + 滚动内容区」 */}
+      <DrawerContent className="w-[600px] max-w-[100vw]">
         <CardDetail card={card} />
       </DrawerContent>
     </Drawer>

@@ -1,12 +1,19 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { CommentScope, CommentType, commentScopeKey } from "@/types/comment";
+import {
+  CommentScope,
+  CommentType,
+  commentScopeKey,
+  type CommentMentionType,
+} from "@/types/comment";
 import {
   deleteCommentAPI,
   getCommentsAPI,
   patchCommentAPI,
   postCommentAPI,
 } from "@/lib/api/CommentAPI";
+// 纯文本工具从 comment-text 引入：comment-utils 依赖 Prisma，客户端不可引用
+import { buildQuotedExcerpt } from "@/lib/comment-text";
 import { useUserDataStore } from "@/store/userDataStore";
 
 // 乐观插入的临时评论 id 前缀，UI 可据此显示"发送中"
@@ -17,10 +24,22 @@ interface CommentState {
   commentsByScope: Record<string, CommentType[]>;
   loadingScopes: Record<string, boolean>;
   fetchComments: (scope: CommentScope) => Promise<void>;
-  createComment: (scope: CommentScope, content: string) => Promise<void>;
+  createComment: (
+    scope: CommentScope,
+    content: string,
+    parentId?: string | null,
+    // @提及（含位置）：由输入框在提交时按最终正文算好
+    mentions?: CommentMentionType[]
+  ) => Promise<void>;
   updateComment: (
     scope: CommentScope,
-    params: { id: string; content?: string; resolved?: boolean }
+    params: {
+      id: string;
+      content?: string;
+      resolved?: boolean;
+      // 全量替换的 @提及（含位置）；不传表示不动提及
+      mentions?: CommentMentionType[];
+    }
   ) => Promise<void>;
   removeComment: (scope: CommentScope, commentId: string) => Promise<void>;
   // 处理 SSE 远程事件，将其他用户的操作同步到本地 store
@@ -44,6 +63,15 @@ function sortByCreatedAt(comments: CommentType[]) {
   comments.sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
+}
+
+// 某条评论被删除后，把引用它的回复的 parentId 置空（保留引用快照），
+// 对应数据库层面的 onDelete: SetNull
+function detachReplies(comments: CommentType[] | undefined, deletedId: string) {
+  if (!comments) return;
+  for (const comment of comments) {
+    if (comment.parentId === deletedId) comment.parentId = null;
+  }
 }
 
 export const useCommentStore = create<CommentState>()(
@@ -72,13 +100,32 @@ export const useCommentStore = create<CommentState>()(
       }
     },
 
-    createComment: async (scope, content) => {
+    createComment: async (scope, content, parentId, mentions) => {
       const key = commentScopeKey(scope);
       const tempId = `${TEMP_COMMENT_PREFIX}${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}`;
       const user = useUserDataStore.getState();
       const now = new Date();
+
+      // 引用快照：与服务端同规则——取根评论（回复的回复也指向根）的作者名与内容摘要
+      let quoted: Pick<
+        CommentType,
+        "parentId" | "quotedAuthorName" | "quotedExcerpt"
+      > = { parentId: null, quotedAuthorName: null, quotedExcerpt: null };
+      if (parentId) {
+        const list = useCommentStore.getState().commentsByScope[key] ?? [];
+        const target = list.find((c) => c.id === parentId);
+        const root = target
+          ? (list.find((c) => c.id === target.parentId) ?? target)
+          : undefined;
+        quoted = {
+          parentId: root?.id ?? parentId,
+          quotedAuthorName:
+            root?.author?.name ?? root?.author?.email ?? null,
+          quotedExcerpt: root ? buildQuotedExcerpt(root.content) : null,
+        };
+      }
 
       // 乐观插入：先用当前用户信息占位，成功后用服务端返回替换
       const optimistic: CommentType = {
@@ -97,6 +144,8 @@ export const useCommentStore = create<CommentState>()(
         resolvedAt: null,
         resolvedById: null,
         editedAt: null,
+        mentions: mentions ?? [],
+        ...quoted,
         createdAt: now,
         updatedAt: now,
       };
@@ -110,6 +159,12 @@ export const useCommentStore = create<CommentState>()(
         const created = await postCommentAPI({
           ...scopeParams(scope),
           content,
+          parentId: parentId ?? undefined,
+          mentions: mentions?.map(({ userId, start, end }) => ({
+            userId,
+            start,
+            end,
+          })),
         });
         set((state) => {
           const list = state.commentsByScope[key];
@@ -158,10 +213,22 @@ export const useCommentStore = create<CommentState>()(
             ? useUserDataStore.getState().id
             : null;
         }
+        if (params.mentions !== undefined) {
+          target.mentions = params.mentions;
+        }
       });
 
       try {
-        const updated = await patchCommentAPI(params);
+        const updated = await patchCommentAPI({
+          id: params.id,
+          content: params.content,
+          resolved: params.resolved,
+          mentions: params.mentions?.map(({ userId, start, end }) => ({
+            userId,
+            start,
+            end,
+          })),
+        });
         set((state) => {
           const list = state.commentsByScope[key];
           if (!list) return;
@@ -190,6 +257,9 @@ export const useCommentStore = create<CommentState>()(
         state.commentsByScope[key] = (state.commentsByScope[key] ?? []).filter(
           (c) => c.id !== commentId
         );
+        // 被删除的评论若被引用，其回复的 parentId 置空（与服务端 SetNull 一致），
+        // 这样引用条立即变为"原评论已删除"，无需刷新
+        detachReplies(state.commentsByScope[key], commentId);
       });
 
       try {
@@ -230,7 +300,7 @@ export const useCommentStore = create<CommentState>()(
             const payload = data as {
               commentId: string;
               cardId: string | null;
-              projectId: string;
+              projectId: string | null;
             };
             const key = payload.cardId
               ? `card:${payload.cardId}`
@@ -240,6 +310,7 @@ export const useCommentStore = create<CommentState>()(
             state.commentsByScope[key] = list.filter(
               (c) => c.id !== payload.commentId
             );
+            detachReplies(state.commentsByScope[key], payload.commentId);
             break;
           }
         }

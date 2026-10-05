@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
+import { MEMBER_SELECT } from "@/lib/project-utils";
 import { successResponse, errorResponse } from "@/types/api";
 
 export async function GET() {
@@ -14,9 +15,7 @@ export async function GET() {
           include: {
             owner: { select: { id: true, name: true, image: true } },
             members: {
-              include: {
-                user: { select: { id: true, name: true, image: true } },
-              },
+              select: MEMBER_SELECT,
               orderBy: { joinedAt: "asc" },
             },
           },
@@ -83,7 +82,7 @@ export async function POST(request: NextRequest) {
         include: {
           owner: { select: { id: true, name: true, image: true } },
           members: {
-            include: { user: { select: { id: true, name: true, image: true } } },
+            select: MEMBER_SELECT,
             orderBy: { joinedAt: "asc" },
           },
           _count: { select: { activities: true } },

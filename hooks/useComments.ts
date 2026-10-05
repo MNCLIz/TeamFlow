@@ -9,6 +9,8 @@ export function useComments(scope: CommentScope) {
   const key = commentScopeKey(scope);
   const projectId = scope.projectId;
   const cardId = scope.type === "card" ? scope.cardId : null;
+  // 项目级讨论必然带 projectId（卡片评论的 projectId 可能为 null，即独立任务）
+  const projectScopeId = scope.type === "project" ? scope.projectId : null;
 
   const comments = useCommentStore((state) => state.commentsByScope[key]);
   const isLoading = useCommentStore((state) => state.loadingScopes[key] ?? false);
@@ -17,13 +19,16 @@ export function useComments(scope: CommentScope) {
   // 依赖使用原始值，避免 scope 对象每次重建导致重复请求
   useEffect(() => {
     if (comments !== undefined) return;
-    const target: CommentScope = cardId
+    const target: CommentScope | null = cardId
       ? { type: "card", projectId, cardId }
-      : { type: "project", projectId };
+      : projectScopeId
+        ? { type: "project", projectId: projectScopeId }
+        : null;
+    if (!target) return;
     fetchComments(target).catch((err) => {
       console.error("[useComments] fetch failed:", err);
     });
-  }, [comments, cardId, projectId, fetchComments]);
+  }, [comments, cardId, projectId, projectScopeId, fetchComments]);
 
   return {
     comments: comments ?? [],

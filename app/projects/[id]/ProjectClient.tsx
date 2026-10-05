@@ -14,6 +14,8 @@ import { useCommentStore } from "@/store/commentStore";
 import { useUserDataStore } from "@/store/userDataStore";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useComments } from "@/hooks/useComments";
+import { useCommentReadState } from "@/hooks/useCommentReadState";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { EditableTitle } from "@/components/shared/EditableTitle";
 import { ProjectType } from "@/types/project";
 import { CommentScope } from "@/types/comment";
@@ -40,19 +42,25 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
 
   const projectScope: CommentScope = useMemo(
     () => ({ type: "project", projectId: id }),
-    [id]
+    [id],
   );
   // 面板收起时也要有未解决数，故数据拉取放在容器层
   const { comments, isLoading } = useComments(projectScope);
   const unresolvedCount = comments.filter((c) => !c.resolved).length;
 
-  // 将服务端下发的项目种入 store，使 addMember 等乐观更新有写入目标
-  useEffect(() => {
-    const { projects, addProject } = useProjectStore.getState();
-    if (!projects.some((p) => p.id === project.id)) {
-      addProject(project);
-    }
-  }, [project]);
+  // 讨论面板是否真的可见：宽屏看右侧面板（1024px 与 aside 的 lg 断点对齐），窄屏看抽屉
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const panelVisible = isDesktop ? commentsOpen : mobileCommentsOpen;
+  // 未读状态：面板可见时收到的评论立即算已读，折叠时收到的不算（红点由此而来）
+  // 分割线的起点由服务端在打开项目时算好（firstUnreadCommentId），本次会话内固定
+  const { hasUnread } = useCommentReadState({
+    projectId: id,
+    comments,
+    initialLastReadAt: project.lastReadAt,
+    panelVisible,
+  });
+  // 红点只在"面板收着且还有未读"时出现；展开着收到消息不做任何提示
+  const showUnreadDot = hasUnread && !panelVisible;
 
   // 将服务端下发的项目种入 store，使 addMember 等乐观更新有写入目标
   useEffect(() => {
@@ -64,8 +72,9 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
 
   // members 订阅 store 而非静态 prop，添加成员后立即可见
   const members =
-    useProjectStore((state) => state.projects.find((p) => p.id === id)?.members) ??
-    project.members;
+    useProjectStore(
+      (state) => state.projects.find((p) => p.id === id)?.members,
+    ) ?? project.members;
 
   const updateName = useProjectStore((state) => state.updateProject);
 
@@ -88,7 +97,7 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
       "comment:deleted": (data: unknown) =>
         useCommentStore.getState().applyRemoteEvent("comment:deleted", data),
     }),
-    []
+    [],
   );
 
   useRealtime({ projectId: id, events: realtimeEvents });
@@ -103,9 +112,12 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className=" mx-40 px-8 py-10 space-y-10">
+    // 外层锁死一屏高度：内容列自己滚动，右侧讨论面板固定不动
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      {/* 内容列：隐藏滚动条（与讨论面板的列表一致），保留滚轮/键盘滚动 */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* 页头：标题 + 讨论入口，两个页签共用 */}
+        <div className="mx-auto w-full max-w-3xl px-6 pt-8 sm:px-10 sm:pt-10">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <EditableTitle
@@ -114,14 +126,16 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
                 onChange={setTitle}
                 readOnly={role !== "ADMIN"}
                 updateName={updateName}
+                className="text-2xl font-semibold tracking-tight"
               />
             </div>
             {/* 讨论入口：宽屏面板展开时淡出隐藏（保留占位，避免标题跳动），窄屏始终保留 */}
             {activeTab === "detail" && (
               <Button
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={handleToggleComments}
-                className={`shrink-0 gap-1.5 transition-all duration-300 ease-out motion-reduce:transition-none ${
+                className={`shrink-0 text-muted-foreground hover:text-foreground transition-all duration-300 ease-out motion-reduce:transition-none ${
                   commentsOpen
                     ? "lg:pointer-events-none lg:invisible lg:translate-x-1 lg:opacity-0"
                     : "translate-x-0 opacity-100"
@@ -130,15 +144,31 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
                 <MessageSquare className="size-4" />
                 讨论
                 {unresolvedCount > 0 && (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                    {unresolvedCount}
-                  </Badge>
+                  <span className="relative inline-flex">
+                    <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                      {unresolvedCount}
+                    </Badge>
+                    {/* 折叠时收到未读评论：在评论数右上角点一个小灰点 */}
+                    {showUnreadDot && (
+                      <span
+                        data-slot="comment-unread-dot"
+                        aria-label="有未读评论"
+                        className="absolute -top-1 -right-1 size-2 rounded-full bg-muted-foreground ring-2 ring-background"
+                      />
+                    )}
+                  </span>
                 )}
               </Button>
             )}
           </div>
-          <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
-          {activeTab === "detail" && (
+
+          <div className="mt-6">
+            <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+          </div>
+        </div>
+
+        {activeTab === "detail" ? (
+          <div className="mx-auto w-full max-w-3xl px-6 pt-8 pb-16 sm:px-10">
             <ProjectDetails
               id={id}
               owner={owner}
@@ -147,9 +177,10 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
               updatedAt={updatedAt}
               members={members}
             />
-          )}
-        </div>
-        {activeTab === "tasks" && <TasksBoard projectId={id} />}
+          </div>
+        ) : (
+          <TasksBoard projectId={id} />
+        )}
       </div>
 
       {/* 右侧可收回的项目级讨论面板（宽屏）
@@ -173,6 +204,7 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
               isLoading={isLoading}
               currentUserId={currentUserId}
               canModerate={canModerate}
+              unreadAnchorId={project.firstUnreadCommentId}
               onClose={() => setCommentsOpen(false)}
             />
           </div>
@@ -181,13 +213,17 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
 
       {/* 窄屏降级为右侧抽屉 */}
       <Sheet open={mobileCommentsOpen} onOpenChange={setMobileCommentsOpen}>
-        <SheetContent side="right" className="w-[85vw] p-0 sm:max-w-sm lg:hidden">
+        <SheetContent
+          side="right"
+          className="w-[85vw] p-0 sm:max-w-sm lg:hidden"
+        >
           <CommentsPanel
             scope={projectScope}
             comments={comments}
             isLoading={isLoading}
             currentUserId={currentUserId}
             canModerate={canModerate}
+            unreadAnchorId={project.firstUnreadCommentId}
           />
         </SheetContent>
       </Sheet>
@@ -202,36 +238,33 @@ function Navigation({
   activeTab: TabView;
   setActiveTab: (tab: TabView) => void;
 }) {
+  const tabs: { key: TabView; label: string }[] = [
+    { key: "detail", label: "内容" },
+    { key: "tasks", label: "任务" },
+  ];
+
   return (
-    <>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          onClick={() => setActiveTab("detail")}
-          className={`
-              ${
-                activeTab === "detail"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              }
-            `}
-        >
-          内容
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setActiveTab("tasks")}
-          className={`
-              ${
-                activeTab === "tasks"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              }
-            `}
-        >
-          任务
-        </Button>
-      </div>
-    </>
+    // 分段控件：浅灰底 + 白色选中块，比描边按钮更轻量
+    <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/60 p-0.5">
+      {tabs.map(({ key, label }) => {
+        const active = activeTab === key;
+        return (
+          <Button
+            key={key}
+            variant="ghost"
+            size="sm"
+            aria-current={active ? "page" : undefined}
+            onClick={() => setActiveTab(key)}
+            className={`px-3 transition-colors ${
+              active
+                ? "bg-background text-foreground shadow-xs hover:bg-background"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </div>
   );
 }

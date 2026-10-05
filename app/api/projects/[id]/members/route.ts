@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, checkProjectAccess, requireProjectAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
+import { MEMBER_SELECT_WITH_EMAIL } from "@/lib/project-utils";
 import { successResponse, errorResponse } from "@/types/api";
 import { broadcast } from "@/lib/sse";
 
@@ -20,21 +21,11 @@ export async function GET(
 
     const members = await prisma.projectMember.findMany({
       where: { projectId },
-      include: {
-        user: { select: { id: true, name: true, email: true, image: true } },
-      },
+      select: MEMBER_SELECT_WITH_EMAIL,
       orderBy: { joinedAt: "asc" },
     });
 
-    const result = members.map((m) => ({
-      id: m.id,
-      userId: m.userId,
-      role: m.role,
-      joinedAt: m.joinedAt,
-      user: m.user,
-    }));
-
-    return NextResponse.json(successResponse(result));
+    return NextResponse.json(successResponse(members));
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       const err = errorResponse("未登录", 401);
@@ -84,9 +75,7 @@ export async function POST(
     const newMember = await prisma.$transaction(async (tx) => {
       const member = await tx.projectMember.create({
         data: { userId: targetUser.id, projectId, role: memberRole },
-        include: {
-          user: { select: { id: true, name: true, email: true, image: true } },
-        },
+        select: MEMBER_SELECT_WITH_EMAIL,
       });
 
       await tx.activity.create({

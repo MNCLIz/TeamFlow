@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-  id               String          @id @default(cuid())
+  id               String           @id @default(cuid())
   name             String?
-  email            String          @unique
+  email            String           @unique
   emailVerified    DateTime?
   image            String?
   accounts         Account[]
   sessions         Session[]
   projects         ProjectMember[]
-  ownedProjects    Project[]       @relation("ProjectOwner")
+  ownedProjects    Project[]        @relation("ProjectOwner")
   createdCards     Card[]
-  assignedCards    Card[]          @relation("CardAssignee")
+  assignedCards    Card[]           @relation("CardAssignee")
   activities       Activity[]
-  comments         Comment[]       @relation("CommentAuthor")
-  resolvedComments Comment[]       @relation("CommentResolver")
+  comments         Comment[]        @relation("CommentAuthor")
+  resolvedComments Comment[]        @relation("CommentResolver")
+  commentMentions  CommentMention[]
 
   @@map("users")
 }
@@ -94,6 +95,10 @@ model ProjectMember {
   projectId String
   role      String   @default("MEMBER") // ADMIN | MEMBER
   joinedAt  DateTime @default(now())
+  // 项目级讨论的已读水位线：值为「该成员已读到的最后一条评论的 createdAt」
+  // 未读 = createdAt > lastReadAt 且未 resolved 且非本人所发；为空表示从未读过（全部视为未读）
+  // 只覆盖项目级讨论（cardId 为 null 的评论），卡片评论暂不参与未读判定
+  lastReadAt DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -143,26 +148,58 @@ model Activity {
 }
 
 model Comment {
-  id           String    @id @default(cuid())
-  content      String    @db.Text
-  // 评论作用域：cardId 为空表示项目级讨论，否则为卡片评论
-  projectId    String
-  cardId       String?
-  authorId     String
-  resolved     Boolean   @default(false)
-  resolvedAt   DateTime?
-  resolvedById String?
-  editedAt     DateTime?
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  card         Card?     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  author       User      @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  resolvedBy   User?     @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String           @id @default(cuid())
+  content          String           @db.Text
+  // 评论作用域：
+  // - projectId 非空 + cardId 为空 → 项目级讨论
+  // - projectId 非空 + cardId 非空 → 项目内的卡片评论（看项目成员权限）
+  // - projectId 为空 + cardId 非空 → 独立任务（不属于任何项目）的评论（看任务创建者/负责人）
+  projectId        String?
+  cardId           String?
+  authorId         String
+  resolved         Boolean          @default(false)
+  resolvedAt       DateTime?
+  resolvedById     String?
+  editedAt         DateTime?
+  // 引用（回复）：只允许一层，parentId 始终指向根评论
+  parentId         String?
+  // 引用快照：创建时写入，被引用评论被编辑或删除都不影响
+  quotedAuthorName String?
+  quotedExcerpt    String?
+  project          Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card             Card?            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author           User             @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy       User?            @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  parent           Comment?         @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies          Comment[]        @relation("CommentReplies")
+  // @提及成员：创建/编辑时按正文里的 @名字 写入（含位置），正文删除提及后同步删除
+  mentions         CommentMention[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([cardId, createdAt])
   @@index([projectId, createdAt])
   @@index([authorId])
   @@index([resolvedById])
+  @@index([parentId])
   @@map("comments")
+}
+
+// 评论提及的成员（@提及）：记录被 @ 的成员与「@名字」在正文中的位置
+// start/end 为正文（入库时 trim 后的 content）的 JS UTF-16 下标，左闭右开：content.slice(start, end) === "@" + 用户名
+// 同一人可以被 @ 多次（每次一行位置），因此唯一约束落在 [commentId, start] 上
+model CommentMention {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  start     Int
+  end       Int
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, start])
+  // 「某人被谁提及过」按时间查询（未读/通知预留）
+  @@index([userId, createdAt])
+  @@map("comment_mentions")
 }

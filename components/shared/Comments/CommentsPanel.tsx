@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CommentComposer } from "@/components/shared/Comments/CommentComposer";
 import { CommentList } from "@/components/shared/Comments/CommentList";
+import { useReplyTarget } from "@/hooks/useReplyTarget";
 import { CommentScope, CommentType } from "@/types/comment";
 
 export function CommentsPanel({
@@ -14,6 +15,7 @@ export function CommentsPanel({
   isLoading,
   currentUserId,
   canModerate,
+  unreadAnchorId,
   onClose,
 }: {
   title?: string;
@@ -22,10 +24,13 @@ export function CommentsPanel({
   isLoading: boolean;
   currentUserId: string;
   canModerate: boolean;
+  // 未读起点（打开项目时服务端算出的第一条未读评论 id）；不传则不显示分割线
+  unreadAnchorId?: string | null;
   // 收起按钮：移动端抽屉里不传，由 Sheet 自带的关闭按钮负责
   onClose?: () => void;
 }) {
   const unresolvedCount = comments.filter((c) => !c.resolved).length;
+  const { replyTo, startReply, clearReply } = useReplyTarget(comments);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -57,11 +62,17 @@ export function CommentsPanel({
           currentUserId={currentUserId}
           canModerate={canModerate}
           isLoading={isLoading}
+          unreadAnchorId={unreadAnchorId}
+          onReply={startReply}
         />
       </div>
 
       <div className="shrink-0 border-t p-3">
-        <CommentComposer scope={scope} />
+        <CommentComposer
+          scope={scope}
+          replyTo={replyTo}
+          onClearReply={clearReply}
+        />
       </div>
     </div>
   );

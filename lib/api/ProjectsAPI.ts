@@ -66,6 +66,13 @@ export const leaveProjectAPI = async (id: string) => {
     })
 }
 
+// 获取项目成员列表
+export const getProjectMembersAPI = async (projectId: string) => {
+    return await request<null, MemberType[]>({
+        url: `/projects/${projectId}/members`
+    })
+}
+
 // 添加项目成员（按邮箱 + 角色）
 interface PostProjectMemberAPIParams {
     projectId: string

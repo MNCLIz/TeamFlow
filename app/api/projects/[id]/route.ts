@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, checkProjectAccess, requireProjectAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
+import { MEMBER_SELECT } from "@/lib/project-utils";
 import { successResponse, errorResponse } from "@/types/api";
 
 export async function GET(
@@ -22,7 +23,7 @@ export async function GET(
       include: {
         owner: { select: { id: true, name: true, image: true } },
         members: {
-          include: { user: { select: { id: true, name: true, image: true } } },
+          select: MEMBER_SELECT,
           orderBy: { joinedAt: "asc" },
         },
         _count: { select: { activities: true } },
@@ -34,10 +35,28 @@ export async function GET(
       return NextResponse.json(err.response, { status: err.status });
     }
 
+    // 打开项目时的「未读起点」：项目级讨论里第一条我没读过的未解决评论
+    // 判定与前端红点一致（晚于本人水位线、未解决、不是自己发的），但以本次请求为准做快照，
+    // 之后面板展开把水位线推进也不会让分割线跳走
+    const firstUnread = await prisma.comment.findFirst({
+      where: {
+        projectId: id,
+        cardId: null,
+        resolved: false,
+        authorId: { not: user.id },
+        ...(member.lastReadAt ? { createdAt: { gt: member.lastReadAt } } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+
     return NextResponse.json(successResponse({
       ...project,
       role: member.role,
       activityCount: project._count.activities,
+      // 当前请求者自己的讨论已读水位线（不放进 members，避免泄露他人的已读时间）
+      lastReadAt: member.lastReadAt,
+      firstUnreadCommentId: firstUnread?.id ?? null,
     }));
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
@@ -82,7 +101,7 @@ export async function PATCH(
       include: {
         owner: { select: { id: true, name: true, image: true } },
         members: {
-          include: { user: { select: { id: true, name: true, image: true } } },
+          select: MEMBER_SELECT,
           orderBy: { joinedAt: "asc" },
         },
         _count: { select: { activities: true } },
