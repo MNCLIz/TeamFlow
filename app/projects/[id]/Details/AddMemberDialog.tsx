@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,18 +52,18 @@ export function AddMemberDialog({ projectId }: { projectId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {/* 成员列表末尾的加号按钮：默认隐藏，悬停成员区域或获得焦点时显示 */}
+      {/* 成员分节标题右侧的邀请入口 */}
       <DialogTrigger
         render={
           <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full border-dashed text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
           />
         }
       >
-        <Plus />
-        <span className="sr-only">添加成员</span>
+        <UserPlus />
+        邀请成员
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -95,8 +95,8 @@ export function AddMemberDialog({ projectId }: { projectId: string }) {
               onChange={(e) => setRole(e.target.value as MemberRole)}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
             >
-              <option value="MEMBER">MEMBER</option>
-              <option value="ADMIN">ADMIN</option>
+              <option value="MEMBER">成员</option>
+              <option value="ADMIN">管理员</option>
             </select>
           </div>
         </div>

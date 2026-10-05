@@ -22,17 +22,25 @@ import {
 import { replaceAll } from "@milkdown/kit/utils";
 import { Fragment, type Node as ProseNode } from "@milkdown/prose/model";
 import type { EditorState } from "@milkdown/prose/state";
+import { Decoration } from "@milkdown/prose/view";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { nord } from "@milkdown/theme-nord";
 import { toast } from "sonner";
 import { postImageAPI } from "@/lib/api/ImageAPI";
 import "@/app/projects/[id]/Details/milkdown-scoped.css";
 
+// 保存状态：idle 表示没有正在进行的保存（调用方可据此隐藏提示）
+export type SaveState = "idle" | "saving" | "saved";
+
 interface MdEditorProps {
   id: string;
   defaultValue?: string;
   readOnly?: boolean;
   placeholder?: string;
+  // 外层容器样式：默认沿用项目详情页的排版，任务详情抽屉里需要去掉缩进/外边距
+  wrapperClassName?: string;
+  // 保存状态回调（可选）：项目详情页用它渲染「保存中/已保存」提示
+  onSaveStateChange?: (state: SaveState) => void;
   updateDescription: (params: {
     id: string;
     name?: string;
@@ -53,6 +61,9 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
 ];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+// markdownUpdated 的防抖窗口是 200ms：失焦后等它把最新 markdown 回填到 tempRef 再保存
+const SAVE_SETTLE_MS = 250;
 
 function isAllowedImage(file: File): boolean {
   return ALLOWED_IMAGE_TYPES.includes(file.type);
@@ -81,7 +92,8 @@ function EditorContent({
   id: id,
   defaultValue = "",
   readOnly = false,
-  placeholder = "Add a description...",
+  placeholder = "添加描述…",
+  onSaveStateChange,
   updateDescription,
 }: MdEditorProps) {
   // 临时保存markdown
@@ -100,15 +112,23 @@ function EditorContent({
   useEffect(() => {
     latestOnSave.current = updateDescription;
   });
+  // 保存状态回调同样用 ref 转发，避免依赖变化导致 saveDescription 重建
+  const latestOnSaveState = useRef(onSaveStateChange);
+  useEffect(() => {
+    latestOnSaveState.current = onSaveStateChange;
+  });
   const saveDescription = useCallback(async () => {
     const current = tempRef.current;
     if (current === lastSavedRef.current) return;
+    latestOnSaveState.current?.("saving");
     try {
       // 只提交一次：latestOnSave 始终指向最新的 updateDescription
       // （原实现在 await updateDescription 之后又用同一份参数调了一次，导致每次保存发两个 PATCH）
       await latestOnSave.current({ id, description: current });
       lastSavedRef.current = current;
+      latestOnSaveState.current?.("saved");
     } catch {
+      latestOnSaveState.current?.("idle");
       toast.error("保存失败，请稍后再试");
     }
   }, [id]);
@@ -216,6 +236,13 @@ function EditorContent({
             );
           ctx.update(uploadConfig.key, (prev) => ({
             ...prev,
+            // 覆盖插件默认的英文占位（"Upload in progress..."）为中文提示
+            uploadWidgetFactory: (pos, spec) => {
+              const widgetDOM = document.createElement("span");
+              widgetDOM.textContent = "图片上传中…";
+              widgetDOM.className = "text-muted-foreground";
+              return Decoration.widget(pos, widgetDOM, spec);
+            },
             getInsertPos: (_event, innerCtx, defaultInsertPos) =>
               resolveInsertPos(
                 innerCtx.get(editorViewCtx).state,
@@ -276,7 +303,9 @@ function EditorContent({
     const handleFocusOut = (e: FocusEvent) => {
       if (!container.contains(e.relatedTarget as Node)) {
         setIsFocused(false);
-        saveDescription();
+        // markdownUpdated 有 200ms 防抖：输入后立刻失焦时 tempRef 可能还没回填，
+        // 直接保存会丢掉最后敲的几个字；延后一点再读 tempRef
+        window.setTimeout(() => saveRef.current(), SAVE_SETTLE_MS);
       }
     };
 
@@ -337,10 +366,13 @@ function EditorContent({
   );
 }
 
-export function MdEditor(props: MdEditorProps) {
+export function MdEditor({
+  wrapperClassName = "mt-5 bg-background px-3 text-sm text-stone-600",
+  ...props
+}: MdEditorProps) {
   return (
     <MilkdownProvider>
-      <div className="mt-5 bg-background px-3 text-sm text-stone-600 [&_.ProseMirror:focus]:outline-none">
+      <div className={`${wrapperClassName} [&_.ProseMirror:focus]:outline-none`}>
         <EditorContent {...props} />
       </div>
     </MilkdownProvider>

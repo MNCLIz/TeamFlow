@@ -7,6 +7,8 @@ export function EditableTitle({
   onChange,
   readOnly,
   updateName,
+  // 字号/字重等排版由调用方决定（默认保持大标题，任务详情抽屉里用小一号）
+  className = "text-3xl font-bold tracking-tight",
 }: {
   id: string;
   value: string;
@@ -17,6 +19,7 @@ export function EditableTitle({
     name?: string;
     description?: string;
   }) => void;
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSavedRef = useRef(value);
@@ -50,7 +53,7 @@ export function EditableTitle({
   }, [id]);
 
   if (readOnly) {
-    return <h1 className="text-3xl font-bold tracking-tight">{value}</h1>;
+    return <h1 className={className}>{value}</h1>;
   }
 
   return (
@@ -63,7 +66,7 @@ export function EditableTitle({
           e.currentTarget.blur();
         }
       }}
-      className="text-3xl font-bold tracking-tight bg-transparent border-none outline-none focus:ring-0 rounded px-1 -ml-1 w-full"
+      className={`w-full rounded border-none bg-transparent px-1 -ml-1 outline-none focus:ring-0 ${className}`}
     />
   );
 }

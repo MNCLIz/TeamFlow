@@ -1,6 +1,9 @@
 /* Scoped Milkdown styles — only ProseMirror + Nord theme typography.
    Extracted from @milkdown/theme-nord/style.css without the Tailwind v4
-   preflight reset that conflicts with the project's own Tailwind setup. */
+   preflight reset that conflicts with the project's own Tailwind setup.
+
+   颜色统一改用应用主题变量（--muted / --border / --foreground …），
+   与 shadcn 主题的明暗两套保持一致，不再硬编码 Nord 蓝。 */
 
 /* --- ProseMirror core --- */
 .ProseMirror {
@@ -33,7 +36,7 @@
 }
 
 .ProseMirror-selectednode {
-  outline: 2px solid #8cf;
+  outline: 2px solid var(--ring);
 }
 
 li.ProseMirror-selectednode {
@@ -43,7 +46,7 @@ li.ProseMirror-selectednode {
 li.ProseMirror-selectednode::after {
   content: "";
   pointer-events: none;
-  border: 2px solid #8cf;
+  border: 2px solid var(--ring);
   position: absolute;
   inset: -2px -2px -2px -32px;
 }
@@ -75,7 +78,7 @@ img.ProseMirror-separator {
 .ProseMirror .column-resize-handle {
   z-index: 20;
   pointer-events: none;
-  background-color: #adf;
+  background-color: var(--ring);
   width: 4px;
   position: absolute;
   top: 0;
@@ -91,7 +94,7 @@ img.ProseMirror-separator {
   z-index: 2;
   content: "";
   pointer-events: none;
-  background: #c8c8ff66;
+  background: color-mix(in oklch, var(--ring) 30%, transparent);
   position: absolute;
   inset: 0;
 }
@@ -101,51 +104,112 @@ img.ProseMirror-separator {
   outline-style: none;
 }
 
+/* --- 块级节奏 ---
+   Tailwind preflight 把 p/ul/pre/blockquote 的默认 margin 清零了，
+   nord 主题又只保留了标题的 margin-top，正文会挤在一起；
+   这里按文档排版补回间距，并清掉首尾元素与列表项内的重复间距。 */
+.milkdown-theme-nord p,
+.milkdown-theme-nord ul,
+.milkdown-theme-nord ol,
+.milkdown-theme-nord pre,
+.milkdown-theme-nord blockquote,
+.milkdown-theme-nord table {
+  margin-block: 0.875rem;
+}
+
+.milkdown-theme-nord p:first-child,
+.milkdown-theme-nord ul:first-child,
+.milkdown-theme-nord ol:first-child,
+.milkdown-theme-nord pre:first-child,
+.milkdown-theme-nord blockquote:first-child,
+.milkdown-theme-nord table:first-child {
+  margin-top: 0;
+}
+
+.milkdown-theme-nord p:last-child,
+.milkdown-theme-nord ul:last-child,
+.milkdown-theme-nord ol:last-child,
+.milkdown-theme-nord pre:last-child,
+.milkdown-theme-nord blockquote:last-child,
+.milkdown-theme-nord table:last-child {
+  margin-bottom: 0;
+}
+
+/* 列表项里的段落不再叠加段间距，否则每个条目都被撑开 */
+.milkdown-theme-nord li p {
+  margin-block: 0;
+}
+
+.milkdown-theme-nord h1,
+.milkdown-theme-nord h2,
+.milkdown-theme-nord h3,
+.milkdown-theme-nord h4,
+.milkdown-theme-nord h5,
+.milkdown-theme-nord h6 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 .milkdown-theme-nord h1 {
-  margin-top: 1.5rem;
-  font-size: 1.875rem;
-  line-height: 1.25;
-  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
 }
 
 .milkdown-theme-nord h2 {
-  margin-top: 1.25rem;
-  font-size: 1.5rem;
-  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.625rem;
+  font-size: 1.25rem;
 }
 
 .milkdown-theme-nord h3 {
-  margin-top: 1rem;
-  font-size: 1.25rem;
-  font-weight: 500;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.125rem;
 }
 
 .milkdown-theme-nord h4 {
-  margin-top: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 0.375rem;
   font-size: 1rem;
-  font-weight: 500;
 }
 
 .milkdown-theme-nord h5,
 .milkdown-theme-nord h6 {
-  margin-top: 0.5rem;
+  margin-top: 0.875rem;
+  margin-bottom: 0.25rem;
   font-size: 0.875rem;
-  font-weight: 500;
+}
+
+.milkdown-theme-nord h1:first-child,
+.milkdown-theme-nord h2:first-child,
+.milkdown-theme-nord h3:first-child,
+.milkdown-theme-nord h4:first-child,
+.milkdown-theme-nord h5:first-child,
+.milkdown-theme-nord h6:first-child {
+  margin-top: 0;
 }
 
 .milkdown-theme-nord p {
   font-size: 1rem;
-  line-height: 1.625;
+  line-height: 1.75;
 }
 
 .milkdown-theme-nord a {
   text-decoration-line: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in oklch, currentColor 40%, transparent);
+}
+
+.milkdown-theme-nord a:hover {
+  text-decoration-color: currentColor;
 }
 
 .milkdown-theme-nord blockquote {
-  border-left: 4px solid #5e81ac;
+  border-left: 3px solid var(--border);
   padding-left: 1rem;
   font-style: normal;
+  color: var(--muted-foreground);
 }
 
 .milkdown-theme-nord ul {
@@ -164,39 +228,34 @@ img.ProseMirror-separator {
   margin-bottom: 0.25rem;
 }
 
+.milkdown-theme-nord li:last-child {
+  margin-bottom: 0;
+}
+
 .milkdown-theme-nord code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 400;
-  color: #5e81ac;
-  background-color: oklch(92.8% 0.006 264.531);
-  padding: 0.125rem 0.25rem;
-  font-size: 0.875rem;
-  border-radius: 0.25rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .milkdown-theme-nord code {
-    background-color: oklch(37.3% 0.034 259.733);
-  }
+  color: var(--foreground);
+  background-color: var(--muted);
+  padding: 0.125rem 0.3125rem;
+  font-size: 0.875em;
+  border-radius: 0.375rem;
 }
 
 .milkdown-theme-nord pre {
   border-radius: 0.5rem;
-  background-color: oklch(96.7% 0.003 264.542);
-  padding: 1rem;
+  background-color: var(--muted);
+  padding: 0.875rem 1rem;
   font-size: 0.875rem;
+  line-height: 1.6;
   overflow-x: auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .milkdown-theme-nord pre {
-    background-color: oklch(27.8% 0.033 256.848);
-  }
 }
 
 .milkdown-theme-nord pre code {
   background-color: transparent;
   color: inherit;
+  padding: 0;
+  font-size: inherit;
 }
 
 .milkdown-theme-nord img {
@@ -207,23 +266,26 @@ img.ProseMirror-separator {
 }
 
 .milkdown-theme-nord hr {
-  margin-block: 1.5rem;
-  border-top: 1px solid;
+  margin-block: 1.75rem;
+  border-top: 1px solid var(--border);
 }
 
 .milkdown-theme-nord table {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.875rem;
-  border: 1px solid;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
 }
 
 .milkdown-theme-nord th,
 .milkdown-theme-nord td {
   padding: 0.5rem 0.75rem;
-  border: 1px solid;
+  border: 1px solid var(--border);
+  text-align: left;
 }
 
 .milkdown-theme-nord th {
   font-weight: 600;
+  background-color: var(--muted);
 }
