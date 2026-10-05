@@ -24,6 +24,8 @@ interface PostCreateStandaloneCardParams {
   description?: string;
   priority?: string;
   state?: TaskState;
+  // 可选：直接指派给某人（首页快捷新建会指派给自己，保证任务立刻出现在「我的任务」里）
+  assigneeId?: string;
 }
 export const postCreateStandaloneCardAPI = async (
   params: PostCreateStandaloneCardParams,
