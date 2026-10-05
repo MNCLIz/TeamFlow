@@ -70,7 +70,7 @@ export function TasksList({ cards }: TasksListProps) {
   if (cards.length === 0) {
     return (
       <p className="text-gray-500 text-center py-12">
-        No tasks yet. Create your first task!
+        还没有任务，创建你的第一个任务吧
       </p>
     );
   }

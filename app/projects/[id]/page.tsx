@@ -15,8 +15,10 @@ export default async function ProjectDetails({
 
   return (
     <AuthProvider>
-      <div className="flex min-h-screen flex-col">
-        <Header title="Projects" extra={CurrentProject.name} />
+      {/* h-full（而不是 min-h-screen）：页面高度锁定为一屏，
+          滚动交给 ProjectClient 里的内容列，右侧讨论面板才能固定不动 */}
+      <div className="flex h-full flex-col">
+        <Header title="项目" href="/projects" extra={CurrentProject.name} />
         <ProjectClient project={CurrentProject} />
       </div>
     </AuthProvider>

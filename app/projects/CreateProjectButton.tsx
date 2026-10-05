@@ -8,10 +8,10 @@ export function CreateProjectButton() {
 
   return (
     <Button
-      onClick={() => createProject({ name: "New Project" })}
+      onClick={() => createProject({ name: "新项目" })}
       className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
     >
-      New Project
+      新建项目
     </Button>
   );
 }

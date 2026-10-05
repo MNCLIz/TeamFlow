@@ -13,9 +13,12 @@ import { redirect } from "next/navigation";
 
 export function Header({
   title,
+  href = "/",
   extra = "",
 }: {
   title: string;
+  // 面包屑标题的跳转目标：标题已中文化，不能再用标题反推路由
+  href?: string;
   extra?: string;
 }) {
   return (
@@ -53,7 +56,7 @@ export function Header({
                       variant={"ghost"}
                       size={"sm"}
                       onClick={() => {
-                        redirect("/" + title.toLowerCase());
+                        redirect(href);
                       }}
                     >
                       {title}

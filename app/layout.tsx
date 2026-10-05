@@ -15,14 +15,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TaskBoard - Real-time Collaborative Task Management",
-  description: "A real-time collaborative task board application",
+  title: "TaskBoard - 实时协作任务看板",
+  description: "多人实时协作的项目管理与任务追踪应用",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col">

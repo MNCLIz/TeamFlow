@@ -32,7 +32,7 @@ export function Column({ column, projectId }: ColumnProps) {
   const handleCreateCard = async () => {
     await createCard({
       projectId,
-      title: "New Task",
+      title: "新任务",
       state: column.state,
     });
   };

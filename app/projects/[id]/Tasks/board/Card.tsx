@@ -52,7 +52,7 @@ export function CardItem({ card, readOnly = true }: CardItemProps) {
       <div
         {...listeners}
         className="cursor-grab active:cursor-grabbing touch-none select-none text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
-        aria-label="Drag to reorder"
+        aria-label="拖拽以调整顺序"
       >
         <GripVertical size={14} />
       </div>
