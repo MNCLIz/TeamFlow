@@ -9,12 +9,14 @@ import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { LogOut } from "lucide-react";
 import { DeleteAlertDialog } from "@/components/shared/DeleteAlertDialog";
+import { ListSkeleton } from "@/components/shared/ListSkeleton/ListSkeleton";
 
 export function ProjectList() {
-  const { projects, fetchProjects, deleteProject, leaveProject } =
+  const { projects, hasLoaded, fetchProjects, deleteProject, leaveProject } =
     useProjectStore(
       useShallow((state: ProjectStoreType) => ({
         projects: state.projects,
+        hasLoaded: state.hasLoaded,
         fetchProjects: state.fetchProjects,
         deleteProject: state.deleteProject,
         leaveProject: state.leaveProject,
@@ -25,7 +27,7 @@ export function ProjectList() {
   const handleDelete = useCallback(
     async (projectId: string) => {
       const deleted = await deleteProject(projectId);
-      if (!deleted) toast.error("Failed to delete project");
+      if (!deleted) toast.error("删除项目失败");
     },
     [deleteProject],
   );
@@ -33,7 +35,7 @@ export function ProjectList() {
   const handleLeave = useCallback(
     async (projectId: string) => {
       const left = await leaveProject(projectId);
-      if (!left) toast.error("Failed to leave project");
+      if (!left) toast.error("退出项目失败");
     },
     [leaveProject],
   );
@@ -42,11 +44,16 @@ export function ProjectList() {
     fetchProjects();
   }, [fetchProjects]);
 
+  // 首次加载未结束前显示骨架屏（含首帧，避免空态闪现）；已加载过则保留旧数据静默刷新
+  if (!hasLoaded) {
+    return <ListSkeleton variant="project" />;
+  }
+
   return (
     <>
       {projects.length === 0 ? (
         <p className="text-gray-500 text-center py-12">
-          No projects yet. Create your first project!
+          还没有项目，创建你的第一个项目吧
         </p>
       ) : (
         <div className="flex flex-col divide-y  rounded-lg">

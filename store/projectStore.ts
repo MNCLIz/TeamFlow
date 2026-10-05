@@ -13,6 +13,8 @@ import {
 export interface ProjectStoreType {
   projects: ProjectType[]
   isLoading: boolean
+  // 首次拉取是否已结束（成功或失败）；为 false 时列表显示骨架屏，为 true 后一律展示已有数据
+  hasLoaded: boolean
   setProjects: (projects: ProjectType[]) => void
   addProject: (project: ProjectType) => void
   removeProject: (projectId: string) => void
@@ -27,6 +29,7 @@ export interface ProjectStoreType {
 export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
   projects: [],
   isLoading: false,
+  hasLoaded: false,
   setProjects: (projects) => set(() => ({ projects })),
   addProject: (project) => {
     set((state) => ({
@@ -43,10 +46,15 @@ export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
       const projects = await getProjectListAPI()
       set((state) => {
         state.projects = projects
-        state.isLoading = false
       })
     } catch {
-      set((state) => { state.isLoading = false })
+      // 失败不额外提示，保持原有静默行为，仅结束加载态
+    } finally {
+      // 成功、失败都要置位：否则接口报错时骨架屏会一直不消失
+      set((state) => {
+        state.isLoading = false
+        state.hasLoaded = true
+      })
     }
   },
   createProject: async (data) => {

@@ -1,8 +1,9 @@
 "use client";
 
 import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Column } from "@/app/projects/[id]/Tasks/board/Column";
+import { TasksBoardSkeleton } from "@/app/projects/[id]/Tasks/TasksBoardSkeleton";
 import { useBoardStore } from "@/store/boardStore";
 import type { TaskState } from "@/types/board";
 import { Priority } from "@/types/board";
@@ -16,10 +17,24 @@ const priorityDotColor: Record<Priority, string> = {
 export function TasksBoard({ projectId }: { projectId: string }) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const { columns, fetchColumns, reorderCard, moveCard } = useBoardStore();
+  const { columns, loadedProjectId, fetchColumns, reorderCard, moveCard } =
+    useBoardStore();
 
-  if (columns.length === 0 || columns[0].projectId !== projectId) {
+  // 记录本次挂载已发起请求的项目：开发模式 StrictMode 会重复执行 effect，
+  // 去掉这层防重会连发两次相同请求
+  const requestedProjectId = useRef<string | null>(null);
+
+  // 拉取本项目看板数据：store 里已有本项目数据时（切换页签来回切）不重复请求
+  useEffect(() => {
+    if (loadedProjectId === projectId) return;
+    if (requestedProjectId.current === projectId) return;
+    requestedProjectId.current = projectId;
     fetchColumns(projectId);
+  }, [projectId, loadedProjectId, fetchColumns]);
+
+  // 首次加载（含首帧）或切换项目后：显示骨架屏，避免空白/「暂无任务」闪现
+  if (loadedProjectId !== projectId) {
+    return <TasksBoardSkeleton />;
   }
 
   // SSE 订阅统一由 ProjectClient 处理（卡片与评论事件共用一条连接）
@@ -94,7 +109,10 @@ export function TasksBoard({ projectId }: { projectId: string }) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 p-4 items-start flex-wrap">
+      <div
+        data-slot="tasks-board"
+        className="flex gap-4 p-4 items-start flex-wrap"
+      >
         {columns.map((column) => (
           <Column
             key={column.state}

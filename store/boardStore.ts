@@ -12,9 +12,14 @@ import {
 
 interface BoardState {
   columns: ColumnType[];
+  // 当前 columns 属于哪个项目；null 表示还没拉过看板数据
+  // 看板页据此判断「本项目看板是否已加载结束（成功或失败）」：未结束显示骨架屏
+  loadedProjectId: string | null;
   // 全量任务列表，供 /tasks 页使用；与 columns 共享同一数据源，写入操作会同步更新两者
   cards: CardType[];
   isLoading: boolean;
+  // /tasks 页首次拉取是否已结束（成功或失败）；只由 fetchCards 写入，不受 fetchColumns 影响
+  hasLoadedCards: boolean;
   fetchColumns: (projectId: string) => Promise<void>;
   fetchCards: () => Promise<void>;
   createCard: (params: {
@@ -52,18 +57,27 @@ interface BoardState {
 
 export const useBoardStore = create<BoardState>()(immer((set) => ({
   columns: [],
+  loadedProjectId: null,
   cards: [],
   isLoading: false,
+  hasLoadedCards: false,
   fetchColumns: async (projectId: string) => {
     set((state) => { state.isLoading = true; });
     try {
       const columns = await getColumnAPI({ id: projectId });
       set((state) => {
         state.columns = columns;
+        state.loadedProjectId = projectId;
         state.isLoading = false;
       });
     } catch {
-      set((state) => { state.isLoading = false; });
+      // 成功、失败都要置位：否则接口报错时骨架屏会一直不消失；
+      // 同时清空 columns，避免上一个项目的看板数据被显示在本项目页
+      set((state) => {
+        state.columns = [];
+        state.loadedProjectId = projectId;
+        state.isLoading = false;
+      });
     }
   },
   fetchCards: async () => {
@@ -72,10 +86,15 @@ export const useBoardStore = create<BoardState>()(immer((set) => ({
       const cards = await getCardsAPI();
       set((state) => {
         state.cards = cards;
-        state.isLoading = false;
       });
     } catch {
-      set((state) => { state.isLoading = false; });
+      // 失败不额外提示，保持原有静默行为，仅结束加载态
+    } finally {
+      // 成功、失败都要置位：否则接口报错时骨架屏会一直不消失
+      set((state) => {
+        state.isLoading = false;
+        state.hasLoadedCards = true;
+      });
     }
   },
   createCard: async (params) => {
