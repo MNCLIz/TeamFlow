@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { toast } from "sonner";
 import { useProjectStore } from "@/store/projectStore";
 import { useBoardStore } from "@/store/boardStore";
 import { useUserDataStore } from "@/store/userDataStore";
-import { postCreateStandaloneCardAPI } from "@/lib/api/BoardAPI";
 import { TaskState } from "@/types/board";
 import { Greeting } from "./home/Greeting";
 import { StatsRow } from "./home/StatsRow";
@@ -42,33 +40,12 @@ export function HomeClient() {
   const currentUserId = useUserDataStore((state) => state.id);
   const userName = useUserDataStore((state) => state.name);
 
-  const [creating, setCreating] = useState(false);
-
   useEffect(() => {
     // 两个 store 内部已处理异常（失败时同样置位 hasLoaded，页面落到空态而不是一直转圈），
     // 与 /projects、/tasks 的现有行为一致，这里不再重复提示
     fetchProjects();
     fetchCards();
   }, [fetchProjects, fetchCards]);
-
-  const handleCreateTask = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      await postCreateStandaloneCardAPI({
-        title: "新任务",
-        // 直接归属自己，创建后立刻出现在「我的任务」里
-        assigneeId: currentUserId || undefined,
-      });
-      // 独立任务不进看板 columns，重新拉一次扁平列表即可（与 /tasks 的 NewTaskButton 同逻辑）
-      await fetchCards();
-      toast.success("已创建任务");
-    } catch {
-      toast.error("创建任务失败");
-    } finally {
-      setCreating(false);
-    }
-  };
 
   // 我的未完成任务（含独立任务）：统计与列表共用同一份过滤结果
   const myOpenTasks = cards.filter((card) => isMyOpenTask(card, currentUserId));
@@ -84,11 +61,7 @@ export function HomeClient() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8 p-6 sm:p-8">
-      <Greeting
-        name={userName}
-        creating={creating}
-        onCreateTask={handleCreateTask}
-      />
+      <Greeting name={userName} assigneeId={currentUserId || undefined} />
 
       <StatsRow
         projectCount={projects.length}

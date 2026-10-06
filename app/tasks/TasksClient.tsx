@@ -1,52 +1,21 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { TasksList } from "./tasksList";
-import { postCreateStandaloneCardAPI } from "@/lib/api/BoardAPI";
 import { useBoardStore } from "@/store/boardStore";
 import { ListSkeleton } from "@/components/shared/ListSkeleton/ListSkeleton";
+import { NewTaskButton } from "@/components/shared/NewActionButtons/NewTaskButton";
 
 export function TasksClient() {
   return (
     <>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">全部任务</h1>
-        <NewTaskButton />
+        <NewTaskButton size="default" />
       </div>
       <TasksListWrapper />
     </>
-  );
-}
-
-function NewTaskButton() {
-  const [creating, setCreating] = useState(false);
-  const fetchCards = useBoardStore((state) => state.fetchCards);
-
-  const handleCreate = useCallback(async () => {
-    setCreating(true);
-    try {
-      await postCreateStandaloneCardAPI({
-        title: "新任务",
-      });
-      // 创建后重新拉取 store 数据，避免整页刷新
-      await fetchCards();
-    } catch {
-      toast.error("创建任务失败");
-    } finally {
-      setCreating(false);
-    }
-  }, [fetchCards]);
-
-  return (
-    <Button
-      onClick={handleCreate}
-      disabled={creating}
-      className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-    >
-      {creating ? "创建中..." : "新建任务"}
-    </Button>
   );
 }
 
