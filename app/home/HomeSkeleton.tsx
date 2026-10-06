@@ -3,11 +3,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 const STAT_ROWS = 4;
 const TASK_ROWS = 4;
 const PROJECT_CARDS = 4;
+const ACTIVITY_ROWS = 3;
 
 /**
- * 首页骨架屏：问候区 + 统计卡 + 我的任务 + 最近项目。
+ * 首页骨架屏：问候区 + 统计卡 + 我的任务 + 最近项目 + 动态。
  * 容器内边距与各块尺寸对齐真实内容（app/HomeClient.tsx），
- * 避免数据到达时布局跳动；由 store 的 hasLoaded / hasLoadedCards 驱动。
+ * 避免数据到达时布局跳动；由各 store 的 hasLoaded / hasLoadedCards / hasLoadedActivities 驱动。
  */
 export function HomeSkeleton() {
   return (
@@ -48,6 +49,27 @@ export function HomeSkeleton() {
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: PROJECT_CARDS }, (_, index) => (
             <Skeleton key={index} className="h-[94px] rounded-lg" />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-24" />
+        <div className="flex flex-col divide-y rounded-lg border">
+          {Array.from({ length: ACTIVITY_ROWS }, (_, index) => (
+            <div
+              key={index}
+              className="flex items-start justify-between gap-3 px-4 py-3"
+            >
+              <div className="flex items-start gap-3">
+                <Skeleton className="size-6 shrink-0 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <Skeleton className="h-3 w-12" />
+            </div>
           ))}
         </div>
       </div>

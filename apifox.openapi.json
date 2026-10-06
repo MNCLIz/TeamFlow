@@ -19,7 +19,8 @@
     { "name": "Realtime", "description": "SSE 实时事件流" },
     { "name": "Images", "description": "图片上传与私有 OSS 代理读取" },
     { "name": "Comments", "description": "评论（卡片级评论 + 项目级讨论，支持引用与 @提及成员）" },
-    { "name": "Docs", "description": "协作文档（WebSocket / Yjs 的引导接口）" }
+    { "name": "Docs", "description": "协作文档（WebSocket / Yjs 的引导接口）" },
+    { "name": "Activities", "description": "动态流（我参与的项目里的活动记录，首页「动态」区块）" }
   ],
   "security": [
     { "sessionCookie": [] }
@@ -474,6 +475,35 @@
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/activities": {
+      "get": {
+        "tags": ["Activities"],
+        "summary": "获取动态流（我参与项目的活动记录）",
+        "description": "返回我作为成员（ProjectMember）的所有项目里的活动记录，按 createdAt 倒序（同一毫秒用 id 兜底，保证截断结果稳定）。**包含我自己产生的记录**：首页「动态」区块只展示别人的操作，是展示层过滤（`activity.user.id === 当前用户` 的条目被丢掉），接口不做过滤，便于其他调用方复用。\n\n记录只挂在项目上：不属于任何项目的独立任务及其评论不写活动记录，因此不会出现在动态流里。任务被删除后该条记录的 `card` 为 null（Activity.cardId 为 SetNull），此时标题回退到 `details.title`；`details` 已在服务端反序列化（UPDATE_CARD 是字段名数组，其余动作为对象，坏数据为 null）。",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "返回条数，1-50 的整数；不传默认 20，非法值返回 400",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "动态列表（createdAt 倒序）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseActivityList" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -1175,6 +1205,75 @@
                 "nullable": true,
                 "description": "快照最后落库时间；从未落库为 null"
               }
+            }
+          }
+        }
+      },
+      "ApiResponseActivityList": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Activity" },
+            "description": "按 createdAt 倒序，最多 limit 条"
+          }
+        }
+      },
+      "Activity": {
+        "type": "object",
+        "description": "项目活动记录（Activity 表）。只挂在项目上，独立任务与其评论不写活动记录。",
+        "properties": {
+          "id": { "type": "string" },
+          "action": {
+            "type": "string",
+            "enum": [
+              "CREATE_CARD",
+              "UPDATE_CARD",
+              "MOVE_CARD",
+              "DELETE_CARD",
+              "ADD_COMMENT",
+              "RESOLVE_COMMENT",
+              "DELETE_COMMENT",
+              "ADD_MEMBER",
+              "REMOVE_MEMBER"
+            ],
+            "description": "动作类型。CREATE_CARD/DELETE_CARD=创建/删除任务，UPDATE_CARD=更新任务字段，MOVE_CARD=移动任务（含改状态），ADD_COMMENT=评论或项目讨论发言，RESOLVE_COMMENT=解决/取消解决讨论，DELETE_COMMENT=删除评论，ADD_MEMBER=添加成员，REMOVE_MEMBER=移除成员或成员自己退出"
+          },
+          "details": {
+            "nullable": true,
+            "description": "按 action 变化的 JSON，服务端已反序列化。对象形态：CREATE_CARD/DELETE_CARD → { title }；MOVE_CARD → { fromState, toState }；ADD_COMMENT → { commentId, scope, excerpt, parentId, mentionIds }（scope 为 CARD/PROJECT）；RESOLVE_COMMENT → { commentId, resolved }；DELETE_COMMENT → { commentId, scope, excerpt }；ADD_MEMBER → { addedUserId, role }；REMOVE_MEMBER → { removedUserId, self? }（self=true 表示本人退出项目）。数组形态：UPDATE_CARD → 变更的字段名数组（如 [\"title\",\"priority\"]）。历史数据或坏数据为 null",
+            "oneOf": [
+              { "type": "object", "additionalProperties": true },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "user": {
+            "type": "object",
+            "description": "操作者",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string", "nullable": true },
+              "image": { "type": "string", "nullable": true }
+            }
+          },
+          "project": {
+            "type": "object",
+            "description": "所属项目（活动可见范围的依据）",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "card": {
+            "type": "object",
+            "nullable": true,
+            "description": "相关任务；任务被删除后为 null（此时前端用 details.title 兜底）",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "state": { "type": "string", "enum": ["TODO", "UP_NEXT", "IN_PROGRESS", "DONE"] }
             }
           }
         }
