@@ -49,7 +49,7 @@ export function MdFileActions({
   title: string;
   // 标题为空时的文件名回退：项目 id / 卡片 id
   fallbackId: string;
-  // row：标题行右侧的图标按钮（项目描述）；menu：「⋯」下拉，用于卡片详情这类窄容器
+  // row：标题行右侧的「图标 + 文字」按钮（项目描述）；menu：「⋯」下拉，用于卡片详情这类窄容器
   variant?: "row" | "menu";
   // MEMBER 只读：不渲染导入入口（导出是纯读操作，仍可用）
   readOnly?: boolean;
@@ -138,27 +138,29 @@ export function MdFileActions({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
               className="text-muted-foreground"
               aria-label="导入 Markdown"
               title="导入 Markdown"
               data-slot="md-import"
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload />
+              <Upload className="size-3.5" />
+              导入
             </Button>
           )}
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
             className="text-muted-foreground"
             aria-label="导出 Markdown"
             title="导出 Markdown"
             data-slot="md-export"
             onClick={handleExport}
           >
-            <Download />
+            <Download className="size-3.5" />
+            导出
           </Button>
         </>
       )}
