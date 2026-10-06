@@ -96,6 +96,12 @@ export default function ProjectClient({ project }: ProjectDetailsClientProps) {
         useCommentStore.getState().applyRemoteEvent("comment:updated", data),
       "comment:deleted": (data: unknown) =>
         useCommentStore.getState().applyRemoteEvent("comment:deleted", data),
+      // 项目/卡片描述由 WS 同步正文，这条负责让「没打开描述编辑器」的成员
+      // （任务页签、列表页、首页摘要）也能拿到最新的投影正文
+      "doc:updated": (data: unknown) =>
+        useProjectStore.getState().applyDocumentUpdated(
+          data as { id: string; markdown?: string | null; updatedAt?: string },
+        ),
     }),
     [],
   );

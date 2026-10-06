@@ -3,6 +3,11 @@ import { requireAuth, checkProjectAccess, requireProjectAdmin } from "@/lib/auth
 import { prisma } from "@/lib/prisma";
 import { MEMBER_SELECT } from "@/lib/project-utils";
 import { successResponse, errorResponse } from "@/types/api";
+import {
+  descriptionTooLongMessage,
+  isDescriptionWithinLimit,
+  utf8ByteLength,
+} from "@/lib/description-limit";
 
 export async function GET(
   _request: NextRequest,
@@ -91,9 +96,18 @@ export async function PATCH(
       return NextResponse.json(err.response, { status: err.status });
     }
 
+    // 描述按 trim 后入库，校验也以入库值为准（TEXT 列 65,535 字节，超限写库只会以 500 暴露）
+    const trimmedDescription = description?.trim() || null;
+    if (trimmedDescription && !isDescriptionWithinLimit(trimmedDescription)) {
+      const err = errorResponse(
+        descriptionTooLongMessage(utf8ByteLength(trimmedDescription)),
+      );
+      return NextResponse.json(err.response, { status: err.status });
+    }
+
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name.trim();
-    if (description !== undefined) data.description = description?.trim() || null;
+    if (description !== undefined) data.description = trimmedDescription;
 
     const updated = await prisma.project.update({
       where: { id },

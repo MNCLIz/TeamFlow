@@ -18,7 +18,8 @@
     { "name": "Members", "description": "项目成员" },
     { "name": "Realtime", "description": "SSE 实时事件流" },
     { "name": "Images", "description": "图片上传与私有 OSS 代理读取" },
-    { "name": "Comments", "description": "评论（卡片级评论 + 项目级讨论，支持引用与 @提及成员）" }
+    { "name": "Comments", "description": "评论（卡片级评论 + 项目级讨论，支持引用与 @提及成员）" },
+    { "name": "Docs", "description": "协作文档（WebSocket / Yjs 的引导接口）" }
   ],
   "security": [
     { "sessionCookie": [] }
@@ -279,7 +280,7 @@
       "get": {
         "tags": ["Realtime"],
         "summary": "SSE 实时事件流",
-        "description": "Server-Sent Events 长连接。连接成功后收到 connected 事件（data 含 userId），每 30s 发送一次心跳注释。业务事件类型：card:created / card:updated / card:deleted（data 为卡片对象）、card:moved（data 为 { cardId, fromState, toState, order }）、member:added（data 为成员对象）、member:removed（data 为 { userId }）、comment:created / comment:updated（data 为评论对象，含 mentions）、comment:deleted（data 为 { commentId, cardId, projectId }）。",
+        "description": "Server-Sent Events 长连接。连接成功后收到 connected 事件（data 含 userId），每 30s 发送一次心跳注释。业务事件类型：card:created / card:updated / card:deleted（data 为卡片对象）、card:moved（data 为 { cardId, fromState, toState, order }）、member:added（data 为成员对象）、member:removed（data 为 { userId }）、comment:created / comment:updated（data 为评论对象，含 mentions）、comment:deleted（data 为 { commentId, cardId, projectId }）、doc:updated（协作文档快照落库，data 为 { kind, id, documentName, version, updatedAt, markdown, online }；markdown 是写回 description 的投影正文，超长时已被截断，见 GET /api/docs/{docName}）。",
         "responses": {
           "200": {
             "description": "SSE 事件流",
@@ -443,6 +444,36 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/docs/{docName}": {
+      "parameters": [
+        {
+          "name": "docName",
+          "in": "path",
+          "required": true,
+          "description": "文档标识，形如 `project-<projectId>`（卡片描述为 `card-<cardId>`，当前未开放协作）；解析规则为在第一个 `-` 处切分，两段都必须匹配 `^[A-Za-z0-9_-]{1,64}$`",
+          "schema": { "type": "string", "example": "project-cmuge1pat00012stcicd1lglx" }
+        }
+      ],
+      "get": {
+        "tags": ["Docs"],
+        "summary": "获取协作文档初始状态（编辑器挂载引导）",
+        "description": "协作文档走 WebSocket（`ws://<host>/collab/<documentName>`，握手携带 NextAuth 会话 Cookie，服务器用 `connectionConfig.readOnly` 强制只读），本接口只是**建连前**的引导：一次性取回只读判定、已落库的 Yjs 快照与既有描述，避免「先编辑后同步」丢字。\n\n- `state`：`Document.yjsState` 的全量快照（base64），客户端用 `Y.applyUpdate` 应用；文档尚无快照时为 null（此时用 `seedMarkdown` 播种）\n- `seedMarkdown` / `markdown`：`state` 为 null 时是 `Project.description` 的既有值，否则是投影列的值\n- `readOnly`：MEMBER 为 true（可同步、不可写入）；`role` 为请求者在该项目中的角色（owner 视为 OWNER）\n- 快照落库由服务端在 WS 文档变更后防抖写入，落库时广播 SSE `doc:updated`\n- 投影列（`Project.description` / `Card.description`）是 MySQL TEXT，超过 65535 字节时**只截断写回投影列**，`Document.markdown` 与 Yjs 快照保持完整。超长时 WS 连接不被拒绝（内容已在所有人手里，拒绝即丢数据）",
+        "responses": {
+          "200": {
+            "description": "文档初始状态",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiResponseDocState" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -1102,6 +1133,50 @@
         "properties": {
           "success": { "type": "boolean", "example": true },
           "data": { "$ref": "#/components/schemas/Comment" }
+        }
+      },
+      "ApiResponseDocState": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "docName": { "type": "string", "example": "project-cmuge1pat00012stcicd1lglx" },
+              "state": {
+                "type": "string",
+                "format": "byte",
+                "nullable": true,
+                "description": "`Document.yjsState` 的 base64 全量快照；文档尚无快照时为 null（此时用 seedMarkdown 播种）"
+              },
+              "markdown": {
+                "type": "string",
+                "nullable": true,
+                "description": "Document.markdown 投影（等于写回 description 的那份）"
+              },
+              "seedMarkdown": {
+                "type": "string",
+                "nullable": true,
+                "description": "没有快照时用于播种的既有描述（Project.description / Card.description）"
+              },
+              "version": { "type": "integer", "description": "快照版本号，每次落库 +1；从未落库为 0" },
+              "readOnly": {
+                "type": "boolean",
+                "description": "服务端判定的只读（MEMBER 为 true）；前端 editable=false 只是体验层"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["OWNER", "ADMIN", "MEMBER"],
+                "nullable": true
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "description": "快照最后落库时间；从未落库为 null"
+              }
+            }
+          }
         }
       },
       "ApiResponseCommentList": {

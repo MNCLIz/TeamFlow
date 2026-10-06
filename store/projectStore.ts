@@ -21,6 +21,12 @@ export interface ProjectStoreType {
   fetchProjects: () => Promise<void>
   createProject: (data: { name: string; description?: string }) => Promise<ProjectType>
   updateProject: (params: { id: string; name?: string; description?: string }) => Promise<void>
+  // SSE 广播到达时就地更新（doc:updated）：只改描述与更新时间，不动其它字段，也不重新拉取
+  applyDocumentUpdated: (params: {
+    id: string
+    markdown?: string | null
+    updatedAt?: string
+  }) => void
   deleteProject: (id: string) => Promise<boolean>
   leaveProject: (id: string) => Promise<boolean>
   addMember: (params: { projectId: string; email: string; role: MemberRole }) => Promise<void>
@@ -69,6 +75,22 @@ export const useProjectStore = create<ProjectStoreType>()(immer((set, get) => ({
       if (idx !== -1) {
         state.projects[idx] = project
       }
+    })
+  },
+  // 项目描述的协作编辑由 WS 同步；这条在「协作文档快照落库」时由 SSE 送来。
+  // 同步更新 description，是为了「没打开描述编辑器」的场景：任务页签/列表页/首页摘要，
+  // 以及 MEMBER 的空描述 → 有描述的切换（编辑器挂不挂载由 store 里的 description 决定）。
+  // 已打开编辑器时覆盖这个字段是安全的：协作态的编辑器正文来自 Y.Doc，不读 store。
+  applyDocumentUpdated: (params: {
+    id: string
+    markdown?: string | null
+    updatedAt?: string
+  }) => {
+    set((state) => {
+      const project = state.projects.find((p) => p.id === params.id)
+      if (!project) return
+      if (typeof params.markdown === "string") project.description = params.markdown
+      if (params.updatedAt) project.updatedAt = new Date(params.updatedAt)
     })
   },
   deleteProject: async (id) => {

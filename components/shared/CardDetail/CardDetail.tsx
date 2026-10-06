@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -17,7 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { CardType, Priority, TaskState } from "@/types/board";
-import { MdEditor } from "../MdEditor";
+import { MdEditor, type MdEditorHandle } from "../MdEditor";
+import { MdFileActions } from "@/components/shared/MdEditor/MdFileActions";
 import { CardComments } from "@/components/shared/Comments/CardComments";
 import { useBoardStore } from "@/store/boardStore";
 import { useProjectStore } from "@/store/projectStore";
@@ -101,6 +102,8 @@ function formatDueDate(date: Date): string {
 
 export function CardDetail({ card }: { card: CardType }) {
   const [title, setTitle] = useState(card.title);
+  // 供「导出 Markdown」读取编辑器当前正文
+  const editorRef = useRef<MdEditorHandle>(null);
 
   const updateDescription = useBoardStore(
     (state) => state.updateCardDescription,
@@ -275,8 +278,19 @@ export function CardDetail({ card }: { card: CardType }) {
         <div className="my-5 h-px bg-border" />
 
         <section>
-          <h2 className="text-sm font-semibold">描述</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">描述</h2>
+            <MdFileActions
+              className="ml-auto"
+              variant="menu"
+              editorRef={editorRef}
+              title={title}
+              fallbackId={card.id}
+              readOnly={readOnly}
+            />
+          </div>
           <MdEditor
+            ref={editorRef}
             id={card.id}
             defaultValue={card.description ?? ""}
             readOnly={readOnly}

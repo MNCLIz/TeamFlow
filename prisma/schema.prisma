@@ -83,6 +83,7 @@ model Project {
   cards       Card[]
   activities  Activity[]
   comments    Comment[]
+  document    Document?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -122,6 +123,7 @@ model Card {
   assignee    User?      @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   activities  Activity[]
   comments    Comment[]
+  document    Document?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -129,6 +131,27 @@ model Card {
   @@index([assigneeId])
   @@index([projectId])
   @@map("cards")
+}
+
+// 协作文档：Markdown 描述的 Yjs 权威副本
+// - 一个项目描述 / 一张卡片描述各一行（两个可空外键，业务上二选一）
+// - yjsState 是 Y.Doc 的全量二进制快照（update 合并后的结果），多人实时编辑的权威数据
+// - markdown 是由 Y.Doc 派生的投影，写回 Project.description / Card.description，
+//   供列表页、搜索、导出等既有读取路径使用；不作为写入源
+model Document {
+  id          String   @id @default(cuid())
+  projectId   String?  @unique
+  cardId      String?  @unique
+  yjsState    Bytes?   @db.MediumBlob
+  stateVector Bytes?   @db.MediumBlob
+  markdown    String?  @db.Text
+  version     BigInt   @default(0)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card        Card?    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("documents")
 }
 
 model Activity {

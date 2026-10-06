@@ -12,6 +12,8 @@ export interface RealtimeEventMap {
   "comment:created"?: (data: unknown) => void;
   "comment:updated"?: (data: unknown) => void;
   "comment:deleted"?: (data: unknown) => void;
+  // 协作文档快照落库（WebSocket 侧同步正文，这条只是「某文档变了」的通知，不带正文）
+  "doc:updated"?: (data: unknown) => void;
   connected?: (data: unknown) => void;
 }
 

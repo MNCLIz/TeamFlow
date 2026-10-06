@@ -20,7 +20,10 @@
 /.tmp-shots/
 
 # next.js
-/.next/
+# 用 /.next*/ 而不是 /.next/：验证时常用 DIST_DIR 换一个构建目录（避免占用用户 dev server 的 .next），
+# 而 Tailwind 4 的源扫描器只内置忽略 `.next`，自定义的 `.next-xxx` 会被当成源码扫进来 ——
+# 构建产物里的类名字符串会被重新生成为 CSS 规则，其中带 CSS 转义的任意值会产出坏字节。
+/.next*/
 /out/
 
 # production
@@ -59,6 +62,7 @@ next-env.d.ts
 # Documentation (project-specific plans)
 DEVELOPMENT_WORKFLOW.md
 PROJECT_PLAN.md
+WEBSOCKET_COLLAB_DESIGN.md
 AGENTS.md
 CLAUDE.md
 

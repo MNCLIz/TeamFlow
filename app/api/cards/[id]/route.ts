@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse } from "@/types/api";
 import { broadcast } from "@/lib/sse";
 import { Priority, TaskState } from "@/types/board";
+import {
+  descriptionTooLongMessage,
+  isDescriptionWithinLimit,
+  utf8ByteLength,
+} from "@/lib/description-limit";
 
 const VALID_PRIORITIES: Priority[] = [Priority.Low, Priority.Medium, Priority.High];
 const VALID_STATES = Object.values(TaskState) as string[];
@@ -50,6 +55,18 @@ export async function PATCH(
 
     if (title !== undefined && title.trim().length === 0) {
       const err = errorResponse("标题不能为空");
+      return NextResponse.json(err.response, { status: err.status });
+    }
+
+    // 卡片描述不 trim（原样入库），按原值校验 TEXT 列的 65,535 字节上限
+    if (
+      description !== undefined &&
+      description !== null &&
+      !isDescriptionWithinLimit(description)
+    ) {
+      const err = errorResponse(
+        descriptionTooLongMessage(utf8ByteLength(description)),
+      );
       return NextResponse.json(err.response, { status: err.status });
     }
 
