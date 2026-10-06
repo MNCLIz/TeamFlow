@@ -1,12 +1,12 @@
 import Link from "next/link";
-import {
-  CheckCircle2,
-  Circle,
-  CircleDashed,
-  CircleDot,
-} from "lucide-react";
+import { CheckCircle2, Circle, CircleDashed, CircleDot } from "lucide-react";
 import { cn } from "cn";
-import { CardType, Priority, TaskState, TASK_STATE_LABELS } from "@/types/board";
+import {
+  CardType,
+  Priority,
+  TaskState,
+  TASK_STATE_LABELS,
+} from "@/types/board";
 import { ProjectType } from "@/types/project";
 import { CardDetailDrawer } from "@/components/shared/CardDetail/CardDetailDrawer";
 import { SectionHeader } from "./SectionHeader";
@@ -42,9 +42,9 @@ const priorityColors: Record<Priority, string> = {
 
 // 行内空间有限，用单字 + 颜色表达优先级（完整叫法见 CardDetail 的「高优先级」）
 const priorityLabels: Record<Priority, string> = {
-  [Priority.High]: "高",
-  [Priority.Medium]: "中",
-  [Priority.Low]: "低",
+  [Priority.High]: "HIGH",
+  [Priority.Medium]: "MEDIUM",
+  [Priority.Low]: "LOW",
 };
 
 const priorityTitles: Record<Priority, string> = {
